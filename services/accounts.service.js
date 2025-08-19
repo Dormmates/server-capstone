@@ -21,9 +21,16 @@ export const getTrainers = async () => {
   });
 };
 
-export const getDistributors = async () => {
+export const getDistributors = async (departmentId) => {
   return await prisma.users.findMany({
-    where: { role: "distributor" },
+    where: {
+      role: "distributor",
+      ...(departmentId && {
+        distributor: {
+          OR: [{ departmentId }, { departmentId: null }],
+        },
+      }),
+    },
     include: {
       distributor: {
         select: {

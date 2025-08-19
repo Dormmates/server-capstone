@@ -46,7 +46,7 @@ model department {
 }
 
 model distributor {
-  userId            String           @db.VarChar(36)
+  userId            String           @unique(map: "userId_UNIQUE") @db.VarChar(36)
   distributorTypeId Int
   departmentId      String?          @db.VarChar(36)
   contactNumber     String           @db.VarChar(20)
@@ -234,7 +234,7 @@ model users {
   allocationlog_allocationlog_distributorIdTousers      allocationlog[]     @relation("allocationlog_distributorIdTousers")
   allocationlog_allocationlog_allocatedByTousers        allocationlog[]     @relation("allocationlog_allocatedByTousers")
   department                                            department?
-  distributor                                           distributor[]
+  distributor                                           distributor?
   notifications_notifications_senderIdTousers           notifications[]     @relation("notifications_senderIdTousers")
   notifications_notifications_receiverIdTousers         notifications[]     @relation("notifications_receiverIdTousers")
   remittancehistory_remittancehistory_remittedByTousers remittancehistory[] @relation("remittancehistory_remittedByTousers")

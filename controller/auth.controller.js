@@ -37,18 +37,11 @@ export const loginController = asyncHandler(async (req, res) => {
     sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
   });
 
-  const { distributor, ...userData } = user;
-
-  const [userDistributor] = user.distributor;
-
-  res.status(HttpStatusCodes.OK).json({ ...userData, distributor: userDistributor });
+  res.status(HttpStatusCodes.OK).json({ ...user });
 });
 
 export const getUserInformationController = asyncHandler(async (req, res, next) => {
   const user = await getUser({ userId: req.user.userId });
 
-  const { distributor, ...userData } = user;
-  const [userDistributor] = user.distributor;
-
-  res.status(HttpStatusCodes.OK).json({ ...userData, distributor: userDistributor });
+  res.status(HttpStatusCodes.OK).json({ ...user });
 });

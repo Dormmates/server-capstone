@@ -216,3 +216,50 @@ export const getScheduleTickets = async (scheduleId) => {
   });
   return tickets;
 };
+
+export const getScheduleDistributors = async (scheduleId) => {
+  const distributors = await prisma.allocationlog.findMany({
+    where: { scheduleId },
+    select: {
+      users_allocationlog_distributorIdTousers: {
+        select: {
+          distributor: {
+            select: {
+              users: {
+                select: {
+                  userId: true,
+                  firstName: true,
+                  lastName: true,
+                },
+              },
+            },
+          },
+        },
+      },
+
+      allocatedtickets: {
+        select: {
+          ticket: {
+            select: {
+              status: true,
+            },
+          },
+        },
+      },
+    },
+  });
+
+  return distributors.map((dist) => {
+    const user = dist.users_allocationlog_distributorIdTousers?.distributor?.users;
+
+    const totalAllocated = dist.allocatedtickets.length;
+    const totalSold = dist.allocatedtickets.filter((t) => t.status === "sold" || t.status === "remitted").length;
+
+    return {
+      userId: user?.userId,
+      name: `${user?.firstName} ${user?.lastName}`,
+      totalAllocated,
+      totalSold,
+    };
+  });
+};

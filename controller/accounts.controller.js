@@ -150,14 +150,10 @@ export const getDistributorTypesController = asyncHandler(async (req, res, next)
 });
 
 export const getDistributorsController = asyncHandler(async (req, res, next) => {
-  const data = await getDistributors();
+  const { departmentId } = req.query;
+  const data = await getDistributors(departmentId);
 
-  const distributors = data.map(({ distributor, ...other }) => ({
-    ...other,
-    distributor: distributor[0] || null,
-  }));
-
-  res.json(distributors);
+  res.json(data);
 });
 
 export const archiveAccountController = asyncHandler(async (req, res, next) => {});

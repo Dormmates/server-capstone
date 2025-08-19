@@ -5,6 +5,7 @@ import {
   generateScheduleTickets,
   generateSeats,
   getScheduleDetails,
+  getScheduleDistributors,
   getScheduleSummary,
   getScheduleTickets,
   getShowSchedules,
@@ -109,4 +110,10 @@ export const getScheduleTicketsController = asyncHandler(async (req, res, next) 
   const { scheduleId } = req.params;
   const tickets = await getScheduleTickets(scheduleId);
   res.json(tickets);
+});
+
+export const getScheduleDistributorsController = asyncHandler(async (req, res, next) => {
+  const { scheduleId } = req.params;
+  const distributors = await getScheduleDistributors(scheduleId);
+  res.json(distributors);
 });
