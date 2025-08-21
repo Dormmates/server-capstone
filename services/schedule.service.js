@@ -218,48 +218,239 @@ export const getScheduleTickets = async (scheduleId) => {
 };
 
 export const getScheduleDistributors = async (scheduleId) => {
-  const distributors = await prisma.allocationlog.findMany({
-    where: { scheduleId },
+  const result = await prisma.$queryRaw`
+    SELECT 
+      u.userId,
+      u.firstName,
+      u.lastName,
+      u.email,
+      d.departmentId,
+      dep.name as departmentName,
+      dt.name as distributorType,
+      COUNT(DISTINCT al.allocationLogId) as allocationCount,
+      COUNT(at.ticketId) as totalAllocated,
+      SUM(CASE WHEN t.status IN ('sold', 'remitted') THEN 1 ELSE 0 END) as totalSold
+    FROM allocationlog al
+    JOIN users u ON al.distributorId = u.userId
+    LEFT JOIN distributor d ON u.userId = d.userId
+    LEFT JOIN department dep ON d.departmentId = dep.departmentId
+    LEFT JOIN distributortypes dt ON d.distributorTypeId = dt.id
+    LEFT JOIN allocatedtickets at ON al.allocationLogId = at.allocationLogId
+    LEFT JOIN ticket t ON at.ticketId = t.ticketId
+    WHERE al.scheduleId = ${scheduleId}
+    GROUP BY u.userId, u.firstName, u.lastName, u.email, d.departmentId, dep.name, dt.name
+  `;
+
+  return result.map((row) => ({
+    userId: row.userId,
+    name: `${row.firstName} ${row.lastName}`,
+    totalAllocated: Number(row.totalAllocated),
+    totalSold: Number(row.totalSold),
+    email: row.email,
+    department: row.departmentName ? row.departmentName : null,
+    distributorType: row.distributorType,
+  }));
+};
+
+export const getScheduleSeatMap = async (scheduleId) => {
+  const schedules = await prisma.showschedules.findMany({
+    where: {
+      scheduleId,
+    },
     select: {
-      users_allocationlog_distributorIdTousers: {
+      showseats: {
         select: {
-          distributor: {
-            select: {
-              users: {
-                select: {
-                  userId: true,
-                  firstName: true,
-                  lastName: true,
-                },
-              },
-            },
-          },
+          seatNumber: true,
+          x: true,
+          y: true,
+          seatSection: true,
+          status: true,
         },
       },
-
-      allocatedtickets: {
+      ticket: {
         select: {
-          ticket: {
-            select: {
-              status: true,
-            },
-          },
+          controlNumber: true,
+          ticketPrice: true,
+          isComplimentary: true,
+          seatNumber: true,
         },
       },
     },
   });
 
-  return distributors.map((dist) => {
-    const user = dist.users_allocationlog_distributorIdTousers?.distributor?.users;
+  const formattedSeats = schedules
+    .map((schedule) => {
+      return schedule.showseats.map((seat) => ({
+        seatNumber: seat.seatNumber,
+        x: seat.x,
+        y: seat.y,
+        row: seat.seatNumber.replace(/[0-9]/g, ""),
+        section: seat.seatSection,
+        status: seat.status,
+        ticketControlNumber: schedule.ticket.find((ticket) => ticket.seatNumber === seat.seatNumber)?.controlNumber ?? null,
+        ticketPrice: schedule.ticket.find((ticket) => ticket.seatNumber === seat.seatNumber)?.ticketPrice ?? null,
+        isComplimentary: schedule.ticket?.isComplimentary ?? false,
+      }));
+    })
+    .flat();
 
-    const totalAllocated = dist.allocatedtickets.length;
-    const totalSold = dist.allocatedtickets.filter((t) => t.status === "sold" || t.status === "remitted").length;
+  return formattedSeats;
+};
+
+export const allocateTicketByControlNumber = async ({ scheduleId, distributorId, allocatedBy, controlNumbers }) => {
+  return await prisma.$transaction(async (prisma) => {
+    // Validate distributor exists and is active
+    const distributor = await prisma.users.findFirst({
+      where: {
+        userId: distributorId,
+        role: "distributor",
+        isArchived: false,
+        isLocked: false,
+      },
+      include: {
+        distributor: true,
+      },
+    });
+
+    if (!distributor) {
+      throw new AppError("Distributor not found or not active", HttpStatusCodes.NotFound);
+    }
+
+    // Validate schedule exists and is open
+    const schedule = await prisma.showschedules.findFirst({
+      where: {
+        scheduleId,
+        isOpen: true,
+        isArchived: false,
+      },
+    });
+
+    if (!schedule) {
+      throw new AppError("Schedule not found or not available for allocation", HttpStatusCodes.NotFound);
+    }
+
+    // Find and validate tickets
+    const tickets = await prisma.ticket.findMany({
+      where: {
+        scheduleId,
+        controlNumber: {
+          in: controlNumbers,
+        },
+      },
+      include: {
+        showschedules: true,
+      },
+    });
+
+    if (tickets.length === 0) {
+      throw new AppError("No tickets found with the given control numbers", HttpStatusCodes.NotFound);
+    }
+
+    // Check for invalid tickets
+    const invalidTickets = [];
+    const validTickets = [];
+
+    for (const ticket of tickets) {
+      if (ticket.status !== "not_allocated") {
+        invalidTickets.push({
+          controlNumber: ticket.controlNumber,
+          reason: `Already ${ticket.status}`,
+        });
+        continue;
+      }
+
+      if (ticket.isComplimentary) {
+        invalidTickets.push({
+          controlNumber: ticket.controlNumber,
+          reason: "Complimentary tickets cannot be allocated",
+        });
+        continue;
+      }
+
+      validTickets.push(ticket);
+    }
+
+    // Check for duplicate control numbers in request vs found tickets
+    const foundControlNumbers = tickets.map((t) => t.controlNumber);
+    const missingControlNumbers = controlNumbers.filter((cn) => !foundControlNumbers.includes(cn));
+
+    // If there are invalid tickets or missing control numbers, throw error with data
+    if (invalidTickets.length > 0 || missingControlNumbers.length > 0) {
+      const ticketsByReason = invalidTickets.reduce((acc, ticket) => {
+        if (!acc[ticket.reason]) {
+          acc[ticket.reason] = [];
+        }
+        acc[ticket.reason].push(ticket.controlNumber);
+        return acc;
+      }, {});
+
+      const messages = [];
+
+      if (missingControlNumbers.length > 0) {
+        messages.push(`${missingControlNumbers.length} control numbers not found`);
+      }
+
+      Object.entries(ticketsByReason).forEach(([reason, tickets]) => {
+        const count = tickets.length;
+        const exampleNumbers = tickets.slice(0, 3).join(", ");
+        const moreText = count > 3 ? ` and ${count - 3} more` : "";
+        messages.push(`${count} tickets ${reason.toLowerCase()} (e.g., ${exampleNumbers}${moreText})`);
+      });
+
+      const errorMessage = `Allocation failed: ${messages.join("; ")}.`;
+
+      throw new AppError(errorMessage, HttpStatusCodes.Conflict);
+    }
+
+    if (validTickets.length === 0) {
+      throw new AppError("No valid tickets available for allocation", HttpStatusCodes.Conflict);
+    }
+
+    // Create allocation log with allocated tickets
+    const allocationLog = await prisma.allocationlog.create({
+      data: {
+        allocationLogId: crypto.randomUUID(),
+        scheduleId,
+        distributorId,
+        allocatedBy,
+        dateAllocated: new Date(),
+        allocatedtickets: {
+          create: validTickets.map((ticket) => ({
+            ticketId: ticket.ticketId,
+          })),
+        },
+      },
+      include: {
+        allocatedtickets: true,
+      },
+    });
+
+    // Update the tickets status
+    await prisma.ticket.updateMany({
+      where: {
+        ticketId: {
+          in: validTickets.map((ticket) => ticket.ticketId),
+        },
+      },
+      data: {
+        status: "allocated",
+        distributorId: distributorId,
+      },
+    });
 
     return {
-      userId: user?.userId,
-      name: `${user?.firstName} ${user?.lastName}`,
-      totalAllocated,
-      totalSold,
+      success: true,
+      message: `Successfully allocated ${validTickets.length} tickets`,
+      data: {
+        allocationLog,
+        allocatedCount: validTickets.length,
+        allocatedTickets: validTickets.map((ticket) => ({
+          controlNumber: ticket.controlNumber,
+          ticketId: ticket.ticketId,
+          ticketPrice: ticket.ticketPrice,
+          seatNumber: ticket.seatNumber,
+        })),
+      },
     };
   });
 };

@@ -16,11 +16,12 @@ export const HttpStatusCodes = {
 };
 
 export class AppError extends Error {
-  constructor(message, statusCode = 500, details) {
+  constructor(message, statusCode = 500, options = {}) {
     super(message);
     this.statusCode = statusCode;
     this.isOperational = true;
-    this.details = details;
+    this.details = options.details;
+    this.data = options.data; // Add data property
     Error.captureStackTrace(this, this.constructor);
   }
 }
@@ -40,12 +41,18 @@ export const errorHandler = (err, req, res, next) => {
     });
   }
 
-  res.status(statusCode).json({
+  const response = {
     success: false,
     error: {
       message,
       ...(isDev && { stack: err.stack }),
       ...(isDev && isAppError && err.details && { details: err.details }),
     },
-  });
+  };
+
+  if (err.data) {
+    response.data = err.data;
+  }
+
+  res.status(statusCode).json(response);
 };

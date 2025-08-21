@@ -2,10 +2,12 @@ import { asyncHandler } from "../middleware/asyncHandler.middleware.js";
 import { AppError, HttpStatusCodes } from "../middleware/errorHandler.middleware.js";
 import {
   addShowSchedule,
+  allocateTicketByControlNumber,
   generateScheduleTickets,
   generateSeats,
   getScheduleDetails,
   getScheduleDistributors,
+  getScheduleSeatMap,
   getScheduleSummary,
   getScheduleTickets,
   getShowSchedules,
@@ -116,4 +118,21 @@ export const getScheduleDistributorsController = asyncHandler(async (req, res, n
   const { scheduleId } = req.params;
   const distributors = await getScheduleDistributors(scheduleId);
   res.json(distributors);
+});
+
+export const allocateTicketByControlNumberController = asyncHandler(async (req, res, next) => {
+  const { distributorId, scheduleId, controlNumbers, allocatedBy } = req.body;
+
+  if (!distributorId || !scheduleId || !controlNumbers || !allocatedBy) {
+    throw new AppError("Missing Post Fields", HttpStatusCodes.BadRequest);
+  }
+
+  const response = await allocateTicketByControlNumber({ scheduleId, distributorId, allocatedBy, controlNumbers });
+  res.json(response);
+});
+
+export const getScheduleSeatMapController = asyncHandler(async (req, res, next) => {
+  const { scheduleId } = req.params;
+  const seatMap = await getScheduleSeatMap(scheduleId);
+  res.json(seatMap);
 });

@@ -1,8 +1,10 @@
 import express from "express";
 import {
   addShowScheduleController,
+  allocateTicketByControlNumberController,
   getScheduleDistributorsController,
   getScheduleInfoController,
+  getScheduleSeatMapController,
   getScheduleTicketsController,
   getScheudleSummaryController,
   getShowSchedulesController,
@@ -19,3 +21,7 @@ router.get("/:scheduleId", verifyAuth, requireRole("head", "trainer"), getSchedu
 router.get("/summary/:scheduleId", verifyAuth, requireRole("head", "trainer"), getScheudleSummaryController);
 router.get("/tickets/:scheduleId", verifyAuth, requireRole("head", "trainer"), getScheduleTicketsController);
 router.get("/distributors/:scheduleId", verifyAuth, requireRole("head", "trainer"), getScheduleDistributorsController);
+
+router.get("/seatmap/:scheduleId", verifyAuth, requireRole("head", "trainer"), getScheduleSeatMapController);
+
+router.post("/allocate/controlNumber", verifyAuth, requireRole("head", "trainer"), allocateTicketByControlNumberController);
