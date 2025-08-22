@@ -287,9 +287,9 @@ export const getScheduleSeatMap = async (scheduleId) => {
         row: seat.seatNumber.replace(/[0-9]/g, ""),
         section: seat.seatSection,
         status: seat.status,
-        ticketControlNumber: schedule.ticket.find((ticket) => ticket.seatNumber === seat.seatNumber)?.controlNumber ?? null,
+        ticketControlNumber: schedule.ticket.find((ticket) => ticket.seatNumber === seat.seatNumber)?.controlNumber ?? 0,
         ticketPrice: schedule.ticket.find((ticket) => ticket.seatNumber === seat.seatNumber)?.ticketPrice ?? null,
-        isComplimentary: schedule.ticket?.isComplimentary ?? false,
+        isComplimentary: schedule.ticket.find((ticket) => ticket.seatNumber === seat.seatNumber)?.isComplimentary,
       }));
     })
     .flat();
@@ -437,6 +437,23 @@ export const allocateTicketByControlNumber = async ({ scheduleId, distributorId,
         distributorId: distributorId,
       },
     });
+
+    if (schedule.seatingType === "controlledSeating") {
+      const ticketsWithSeats = validTickets.filter((ticket) => ticket.seatNumber);
+      if (ticketsWithSeats.length > 0) {
+        await prisma.showseats.updateMany({
+          where: {
+            scheduleId,
+            seatNumber: {
+              in: ticketsWithSeats.map((ticket) => ticket.seatNumber),
+            },
+          },
+          data: {
+            status: "reserved",
+          },
+        });
+      }
+    }
 
     return {
       success: true,
