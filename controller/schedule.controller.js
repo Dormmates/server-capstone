@@ -1,10 +1,12 @@
 import { asyncHandler } from "../middleware/asyncHandler.middleware.js";
 import { AppError, HttpStatusCodes } from "../middleware/errorHandler.middleware.js";
+import { getDistributorAllocatedTickets, getDistributorTicketsSummary } from "../services/distributor.service.js";
 import {
   addShowSchedule,
   allocateTicketByControlNumber,
   generateScheduleTickets,
   generateSeats,
+  getSchedule,
   getScheduleDetails,
   getScheduleDistributors,
   getScheduleSeatMap,
@@ -26,6 +28,7 @@ export const getShowSchedulesController = asyncHandler(async (req, res) => {
   }
 
   const schedules = await getShowSchedules(showId);
+
   res.json(schedules);
 });
 
@@ -38,7 +41,7 @@ export const addShowScheduleController = asyncHandler(async (req, res) => {
 
       const formattedDates = convertDates(dates);
 
-      await prisma.$transaction(async (tx) => {
+      const returnData = await prisma.$transaction(async (tx) => {
         const createdSchedules = await addShowSchedule({
           dates: formattedDates,
           showId,
@@ -74,10 +77,9 @@ export const addShowScheduleController = asyncHandler(async (req, res) => {
         }
       });
 
-      res.status(HttpStatusCodes.OK).json({ message: "Schedules Added" });
+      res.status(HttpStatusCodes.OK).json({ message: "Added Schedules" });
       break;
     }
-
     case "nonTicketed": {
       await addShowSchedule({
         dates: convertDates(dates),
@@ -86,7 +88,7 @@ export const addShowScheduleController = asyncHandler(async (req, res) => {
         ticketType,
       });
 
-      res.status(HttpStatusCodes.OK).json({ message: "Schedules Added" });
+      res.status(HttpStatusCodes.OK).json({ message: "Added Schedules" });
       break;
     }
 
@@ -135,4 +137,16 @@ export const getScheduleSeatMapController = asyncHandler(async (req, res, next) 
   const { scheduleId } = req.params;
   const seatMap = await getScheduleSeatMap(scheduleId);
   res.json(seatMap);
+});
+
+export const getTicketsAllocatedOfDistributorController = asyncHandler(async (req, res, next) => {
+  const { scheduleId, distributorId } = req.params;
+  const data = await getDistributorAllocatedTickets({ distributorId, scheduleId });
+  res.json(data);
+});
+
+export const getDistributorTicketsSummaryController = asyncHandler(async (req, res, next) => {
+  const { scheduleId, distributorId } = req.params;
+  const data = await getDistributorTicketsSummary({ distributorId, scheduleId });
+  res.json(data);
 });

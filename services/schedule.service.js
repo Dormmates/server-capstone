@@ -46,6 +46,10 @@ export const addShowSchedule = async ({
   }));
 };
 
+export const getSchedule = async (scheduleId) => {
+  return await prisma.showschedules.findUnique({ where: { scheduleId } });
+};
+
 export const generateScheduleTickets = async ({ tx, scheduleId, seatPricing, seats, ticketPrice, controlNumbers, seatingConfiguration }) => {
   const tickets = [];
 
@@ -136,7 +140,10 @@ export const generateSeats = async ({ tx, seats, schedId }) => {
 };
 
 export const getShowSchedules = async (showId) => {
-  return await prisma.showschedules.findMany({ where: { showId } });
+  return await prisma.showschedules.findMany({
+    where: { showId },
+    orderBy: { datetime: "asc" },
+  });
 };
 
 export const getScheduleDetails = async (scheduleId) => {

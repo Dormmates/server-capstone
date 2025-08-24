@@ -19,8 +19,8 @@ router.post("/archive", verifyAuth, requireRole("head", "trainer"), archiveShowC
 router.post("/unarchive", verifyAuth, requireRole("head", "trainer"), unArchiveShowController);
 router.post("/delete", verifyAuth, requireRole("head", "trainer"), unArchiveShowController);
 
-router.get("/:id", verifyAuth, getShowController);
-router.get("/", verifyAuth, getShowsController);
+router.get("/:id", getShowController);
+router.get("/", getShowsController);
 router.get("/archived", getArchivedShowsController);
 
 router.patch("/", verifyAuth, requireRole("head", "trainer"), upload.single("image"), updateWithReplace, updateShowController);

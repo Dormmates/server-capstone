@@ -30,6 +30,25 @@ export const createShow = async ({ showTitle, coverImage, description, departmen
         })),
       },
     },
+    select: {
+      showId: true,
+      title: true,
+      description: true,
+      showType: true,
+      department: true,
+      createdBy: true,
+      createdAt: true,
+      isArchived: true,
+      showCover: true,
+      showgenre: {
+        select: {
+          genre_showgenre_genreTogenre: {
+            select: { name: true },
+          },
+        },
+      },
+      showschedules: true,
+    },
   });
 
   return newShow;
@@ -43,17 +62,17 @@ export const updateShow = async ({ showId, showTitle, coverImage, description, d
         title: showTitle,
         description,
         showType,
-        departmentId: department,
-        ...(coverImage && { showCover: coverImage }), // only update if provided
+        departmentId: department ?? null,
+        ...(coverImage && { showCover: coverImage }),
       },
     });
 
-    //  Remove existing genres
+    // Remove existing genres
     await tx.showgenre.deleteMany({
       where: { showId },
     });
 
-    // Add updated genres with connectOrCreate
+    // Add updated genres
     for (const name of genre) {
       await tx.showgenre.create({
         data: {
@@ -70,7 +89,20 @@ export const updateShow = async ({ showId, showTitle, coverImage, description, d
       });
     }
 
-    return true;
+    const updatedShow = await tx.shows.findUnique({
+      where: { showId },
+      include: {
+        department: true,
+        showgenre: {
+          include: {
+            genre_showgenre_genreTogenre: true,
+          },
+        },
+        showschedules: true,
+      },
+    });
+
+    return updatedShow;
   });
 };
 

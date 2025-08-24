@@ -17,7 +17,9 @@ export const createShowController = asyncHandler(async (req, res, next) => {
     .filter((g) => g !== "");
 
   const newShow = await createShow({ showTitle, coverImage: imageUrl, description, department, genre: cleanedGenres, createdBy, showType });
-  res.status(HttpStatusCodes.Created).json({ message: "Show Created", newShow });
+  const genreNames = newShow?.showgenre.map((g) => g.genre_showgenre_genreTogenre.name);
+
+  res.status(HttpStatusCodes.OK).json({ ...newShow, genreNames });
 });
 
 export const updateShowController = asyncHandler(async (req, res, next) => {
@@ -34,7 +36,7 @@ export const updateShowController = asyncHandler(async (req, res, next) => {
     .map((g) => g.trim())
     .filter((g) => g !== "");
 
-  await updateShow({
+  const updatedShow = await updateShow({
     showId,
     showTitle,
     coverImage: imageUrl,
@@ -45,7 +47,9 @@ export const updateShowController = asyncHandler(async (req, res, next) => {
     showType,
   });
 
-  res.status(HttpStatusCodes.Created).json({ message: "Updated Show" });
+  const genreNames = updatedShow?.showgenre.map((g) => g.genre_showgenre_genreTogenre.name);
+
+  res.status(HttpStatusCodes.Created).json({ ...updatedShow, genreNames });
 });
 
 export const getShowController = asyncHandler(async (req, res, next) => {
@@ -75,7 +79,7 @@ export const getShowsController = asyncHandler(async (req, res) => {
 
   const { shows } = await getShows({ departmentId, showType });
 
-  res.json({ shows });
+  res.json(shows);
 });
 
 export const getArchivedShowsController = asyncHandler(async (req, res) => {
