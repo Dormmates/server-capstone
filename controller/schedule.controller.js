@@ -1,12 +1,16 @@
 import { asyncHandler } from "../middleware/asyncHandler.middleware.js";
 import { AppError, HttpStatusCodes } from "../middleware/errorHandler.middleware.js";
-import { getDistributorAllocatedTickets, getDistributorTicketsSummary } from "../services/distributor.service.js";
+import {
+  getDistributorAllocatedTickets,
+  getDistributorAllocationHistory,
+  getDistributorRemittanceHistory,
+  getDistributorTicketsSummary,
+} from "../services/distributorTickets.service.js";
 import {
   addShowSchedule,
   allocateTicketByControlNumber,
   generateScheduleTickets,
   generateSeats,
-  getSchedule,
   getScheduleDetails,
   getScheduleDistributors,
   getScheduleSeatMap,
@@ -142,6 +146,19 @@ export const getScheduleSeatMapController = asyncHandler(async (req, res, next) 
 export const getTicketsAllocatedOfDistributorController = asyncHandler(async (req, res, next) => {
   const { scheduleId, distributorId } = req.params;
   const data = await getDistributorAllocatedTickets({ distributorId, scheduleId });
+  res.json(data);
+});
+
+export const getDistributorAllocationHistoryController = asyncHandler(async (req, res, next) => {
+  const { scheduleId, distributorId } = req.params;
+  const data = await getDistributorAllocationHistory({ distributorId, scheduleId });
+
+  res.json(data);
+});
+
+export const getDistributorRemittanceHistoryController = asyncHandler(async (req, res, next) => {
+  const { scheduleId, distributorId } = req.params;
+  const data = await getDistributorRemittanceHistory({ distributorId, scheduleId });
   res.json(data);
 });
 

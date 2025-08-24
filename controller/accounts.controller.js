@@ -13,13 +13,17 @@ import { assignDepartmentTrainer, removeDepartmentTrainer, removeDepartmentTrain
 import prisma from "../utils/primsa.connection.js";
 import { validateEmail } from "../utils/validators.js";
 
-//Get List of trainers
+/**
+ * Get list of Trainers
+ */
 export const getTrainersController = asyncHandler(async (req, res, next) => {
   const trainers = await getTrainers();
   res.json(trainers);
 });
 
-//create a new trainer
+/**
+ * Creates a new Trainer Account
+ */
 export const createTrainerAccountController = asyncHandler(async (req, res, next) => {
   const { firstName, lastName, email, departmentId } = req.body;
 
@@ -42,7 +46,9 @@ export const createTrainerAccountController = asyncHandler(async (req, res, next
   res.status(HttpStatusCodes.Created).json({ message: "Trainer Account Create Successfully" });
 });
 
-//edit trainer
+/**
+ * Edits a Trainer Account
+ */
 export const editTrainerAccountController = asyncHandler(async (req, res, next) => {
   const { userId, firstName, lastName, email, departmentId } = req.body;
 
@@ -69,7 +75,9 @@ export const editTrainerAccountController = asyncHandler(async (req, res, next) 
   res.status(HttpStatusCodes.Created).json({ message: "Trainer Account Edited" });
 });
 
-// create head account
+/**
+ * Creates a Head Account
+ */
 export const createHeadAccountController = asyncHandler(async (req, res, next) => {
   const { firstName, lastName, email } = req.body;
 
@@ -87,7 +95,9 @@ export const createHeadAccountController = asyncHandler(async (req, res, next) =
   res.status(HttpStatusCodes.Created).json({ message: "Head Account Create Successfully", newHead });
 });
 
-//create distributor account
+/**
+ * Creates a new Distributor Account
+ */
 export const createDistributorAccountController = asyncHandler(async (req, res, next) => {
   const { firstName, lastName, email, distributorType, contactNumber, departmentId } = req.body;
 
@@ -117,6 +127,9 @@ export const createDistributorAccountController = asyncHandler(async (req, res, 
   res.status(HttpStatusCodes.Created).json({ message: "Distributor Account Successfully Created", newAccount });
 });
 
+/**
+ * Updates a Distributor Account
+ */
 export const updateDistributorAccountController = asyncHandler(async (req, res, next) => {
   const { userId, firstName, lastName, email, distributorType, contactNumber, departmentId } = req.body;
 
@@ -144,11 +157,18 @@ export const updateDistributorAccountController = asyncHandler(async (req, res, 
   res.json({ message: "Distributor account updated successfully", updatedAccount });
 });
 
+/**
+ * Get Distributor Types
+ */
+
 export const getDistributorTypesController = asyncHandler(async (req, res, next) => {
   const types = await getDistributorTypes();
   res.json(types);
 });
 
+/**
+ * Get list of Distributors
+ */
 export const getDistributorsController = asyncHandler(async (req, res, next) => {
   const { departmentId } = req.query;
   const data = await getDistributors(departmentId);
