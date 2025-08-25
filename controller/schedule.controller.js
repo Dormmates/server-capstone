@@ -4,11 +4,10 @@ import {
   getDistributorAllocatedTickets,
   getDistributorAllocationHistory,
   getDistributorRemittanceHistory,
-  getDistributorTicketsSummary,
 } from "../services/distributorTickets.service.js";
 import {
   addShowSchedule,
-  allocateTicketByControlNumber,
+  allocateTicket,
   generateScheduleTicketsAndSeats,
   getScheduleDetails,
   getScheduleDistributors,
@@ -16,6 +15,7 @@ import {
   getScheduleSummary,
   getScheduleTickets,
   getShowSchedules,
+  unallocateTicket,
 } from "../services/schedule.service.js";
 import { doesShowExist } from "../services/show.service.js";
 import { convertDates } from "../utils/convert.utils.js";
@@ -115,14 +115,25 @@ export const getScheduleDistributorsController = asyncHandler(async (req, res, n
   res.json(distributors);
 });
 
-export const allocateTicketByControlNumberController = asyncHandler(async (req, res, next) => {
+export const allocateTicketController = asyncHandler(async (req, res, next) => {
   const { distributorId, scheduleId, controlNumbers, allocatedBy } = req.body;
 
   if (!distributorId || !scheduleId || !controlNumbers || !allocatedBy) {
     throw new AppError("Missing Post Fields", HttpStatusCodes.BadRequest);
   }
 
-  const response = await allocateTicketByControlNumber({ scheduleId, distributorId, allocatedBy, controlNumbers });
+  const response = await allocateTicket({ scheduleId, distributorId, allocatedBy, controlNumbers });
+  res.json(response);
+});
+
+export const unAllocateTicketController = asyncHandler(async (req, res, next) => {
+  const { distributorId, scheduleId, controlNumbers, unallocatedBy } = req.body;
+
+  if (!distributorId || !scheduleId || !controlNumbers || !unallocatedBy) {
+    throw new AppError("Missing Post Fields", HttpStatusCodes.BadRequest);
+  }
+
+  const response = await unallocateTicket({ scheduleId, distributorId, unallocatedBy, controlNumbers });
   res.json(response);
 });
 

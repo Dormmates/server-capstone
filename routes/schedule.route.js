@@ -1,7 +1,7 @@
 import express from "express";
 import {
   addShowScheduleController,
-  allocateTicketByControlNumberController,
+  allocateTicketController,
   getDistributorAllocationHistoryController,
   getDistributorRemittanceHistoryController,
   getDistributorTicketsSummaryController,
@@ -12,6 +12,7 @@ import {
   getScheudleSummaryController,
   getShowSchedulesController,
   getTicketsAllocatedOfDistributorController,
+  unAllocateTicketController,
 } from "../controller/schedule.controller.js";
 import { requireRole, verifyAuth } from "../middleware/auth.middleware.js";
 
@@ -31,4 +32,5 @@ router.get("/:scheduleId/remittanceHistory/:distributorId", getDistributorRemitt
 router.get("/:scheduleId/ticketSummary/:distributorId", getDistributorTicketsSummaryController);
 
 router.post("/", verifyAuth, requireRole("head", "trainer"), addShowScheduleController);
-router.post("/allocate/controlNumber", verifyAuth, requireRole("head", "trainer"), allocateTicketByControlNumberController);
+router.post("/allocate/controlNumber", verifyAuth, requireRole("head", "trainer"), allocateTicketController);
+router.post("/unallocate/controlNumber", verifyAuth, requireRole("head", "trainer"), unAllocateTicketController);
