@@ -9,8 +9,7 @@ import {
 import {
   addShowSchedule,
   allocateTicketByControlNumber,
-  generateScheduleTickets,
-  generateSeats,
+  generateScheduleTicketsAndSeats,
   getScheduleDetails,
   getScheduleDistributors,
   getScheduleSeatMap,
@@ -45,7 +44,7 @@ export const addShowScheduleController = asyncHandler(async (req, res) => {
 
       const formattedDates = convertDates(dates);
 
-      const returnData = await prisma.$transaction(async (tx) => {
+      await prisma.$transaction(async (tx) => {
         const createdSchedules = await addShowSchedule({
           dates: formattedDates,
           showId,
@@ -58,32 +57,22 @@ export const addShowScheduleController = asyncHandler(async (req, res) => {
         });
 
         for (const sched of createdSchedules) {
-          if (seatingConfiguration === "freeSeating") {
-            await generateScheduleTickets({
-              scheduleId: sched.scheduleId,
-              ticketPrice,
-              controlNumbers,
-              seatingConfiguration,
-              tx,
-            });
-          } else if (seatingConfiguration === "controlledSeating") {
-            await generateScheduleTickets({
-              seatPricing,
-              seatingConfiguration,
-              seats,
-              scheduleId: sched.scheduleId,
-              ticketPrice,
-              controlNumbers,
-              tx,
-            });
-            await generateSeats({ tx, seats, schedId: sched.scheduleId });
-          }
+          await generateScheduleTicketsAndSeats({
+            tx,
+            scheduleId: sched.scheduleId,
+            seatPricing,
+            seats,
+            ticketPrice,
+            controlNumbers,
+            seatingConfiguration,
+          });
         }
       });
 
       res.status(HttpStatusCodes.OK).json({ message: "Added Schedules" });
       break;
     }
+
     case "nonTicketed": {
       await addShowSchedule({
         dates: convertDates(dates),

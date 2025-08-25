@@ -50,8 +50,9 @@ export const getSchedule = async (scheduleId) => {
   return await prisma.showschedules.findUnique({ where: { scheduleId } });
 };
 
-export const generateScheduleTickets = async ({ tx, scheduleId, seatPricing, seats, ticketPrice, controlNumbers, seatingConfiguration }) => {
+export const generateScheduleTicketsAndSeats = async ({ tx, scheduleId, seatPricing, seats, ticketPrice, controlNumbers, seatingConfiguration }) => {
   const tickets = [];
+  const seatsData = [];
 
   const orchestra = controlNumbers?.orchestra || [];
   const balcony = controlNumbers?.balcony || [];
@@ -60,85 +61,54 @@ export const generateScheduleTickets = async ({ tx, scheduleId, seatPricing, sea
   const isControlled = seatingConfiguration === "controlledSeating";
   const isFixedPrice = seatPricing === "fixed";
 
-  // Orchestra tickets
-  for (const num of orchestra) {
-    let seatNumber;
+  const createTicketAndLinkSeat = (num, ticketSection, complimentaryTicket = false) => {
     let price = ticketPrice;
+    let seat = null;
 
     if (isControlled) {
-      const seat = seats.find((s) => s.ticketControlNumber === num);
-      seatNumber = seat?.seatNumber;
-      if (!isFixedPrice) price = seat?.ticketPrice;
+      seat = seats.find((s) => s.ticketControlNumber === num);
+      if (!seat) throw new AppError(`No matching seat for control number ${num}`);
+      if (!isFixedPrice && !complimentaryTicket) price = seat.ticketPrice;
     }
 
+    const ticketId = crypto.randomUUID();
+
     tickets.push({
-      ticketId: crypto.randomUUID(),
+      ticketId,
       scheduleId,
       controlNumber: num,
-      seatNumber: isControlled ? seatNumber : undefined,
-      ticketPrice: isFixedPrice ? ticketPrice : price,
-      isComplimentary: false,
-      ticketSection: "orchestra",
+      ticketPrice: complimentaryTicket ? 0 : price,
+      isComplimentary: complimentaryTicket,
+      ticketSection,
     });
-  }
 
-  // Balcony tickets
-  for (const num of balcony) {
-    let seatNumber;
-    let price = ticketPrice;
-
-    if (isControlled) {
-      const seat = seats.find((s) => s.ticketControlNumber === num);
-      seatNumber = seat?.seatNumber;
-      if (!isFixedPrice) price = seat?.ticketPrice;
+    if (seat) {
+      const seatIndex = seatsData.findIndex((s) => s.seatNumber === seat.seatNumber);
+      if (seatIndex !== -1) {
+        seatsData[seatIndex].ticketId = ticketId;
+      }
     }
+  };
 
-    tickets.push({
-      ticketId: crypto.randomUUID(),
+  seats.forEach((s) => {
+    seatsData.push({
       scheduleId,
-      controlNumber: num,
-      seatNumber: isControlled ? seatNumber : undefined,
-      ticketPrice: isFixedPrice ? ticketPrice : price,
-      isComplimentary: false,
-      ticketSection: "balcony",
-    });
-  }
-
-  // Complimentary tickets (no ticketSection)
-  for (const num of complimentary) {
-    let seatNumber;
-
-    if (isControlled) {
-      const seat = seats.find((s) => s.ticketControlNumber === num);
-      seatNumber = seat?.seatNumber;
-    }
-
-    tickets.push({
-      ticketId: crypto.randomUUID(),
-      scheduleId,
-      controlNumber: num,
-      seatNumber: isControlled ? seatNumber : undefined,
-      ticketPrice: 0,
-      isComplimentary: true,
-      ticketSection: null,
-    });
-  }
-
-  await tx.ticket.createMany({ data: tickets });
-
-  return tickets;
-};
-
-export const generateSeats = async ({ tx, seats, schedId }) => {
-  await tx.showseats.createMany({
-    data: seats.map((s) => ({
-      scheduleId: schedId,
       seatNumber: s.seatNumber,
       seatSection: s.section,
       x: s.x,
       y: s.y,
-    })),
+      ticketId: null,
+    });
   });
+
+  orchestra.forEach((num) => createTicketAndLinkSeat(num, "orchestra"));
+  balcony.forEach((num) => createTicketAndLinkSeat(num, "balcony"));
+  complimentary.forEach((num) => createTicketAndLinkSeat(num, null, true));
+
+  await tx.ticket.createMany({ data: tickets });
+  await tx.showseats.createMany({ data: seatsData });
+
+  return tickets;
 };
 
 export const getShowSchedules = async (showId) => {
@@ -296,46 +266,62 @@ export const getScheduleDistributors = async (scheduleId) => {
 };
 
 export const getScheduleSeatMap = async (scheduleId) => {
-  const schedules = await prisma.showschedules.findMany({
-    where: {
-      scheduleId,
-    },
+  const seatMap = await prisma.showseats.findMany({
+    where: { scheduleId },
     select: {
-      showseats: {
-        select: {
-          seatNumber: true,
-          x: true,
-          y: true,
-          seatSection: true,
-          status: true,
-        },
-      },
+      seatNumber: true,
+      seatSection: true,
+      status: true,
+      x: true,
+      y: true,
       ticket: {
         select: {
           controlNumber: true,
           ticketPrice: true,
           isComplimentary: true,
-          seatNumber: true,
+          users: {
+            select: {
+              firstName: true,
+              lastName: true,
+              distributor: {
+                select: {
+                  distributortypes: {
+                    select: {
+                      name: true,
+                    },
+                  },
+                  department: {
+                    select: {
+                      name: true,
+                    },
+                  },
+                },
+              },
+            },
+          },
         },
       },
     },
   });
 
-  const formattedSeats = schedules
-    .map((schedule) => {
-      return schedule.showseats.map((seat) => ({
-        seatNumber: seat.seatNumber,
-        x: seat.x,
-        y: seat.y,
-        row: seat.seatNumber.replace(/[0-9]/g, ""),
-        section: seat.seatSection,
-        status: seat.status,
-        ticketControlNumber: schedule.ticket.find((ticket) => ticket.seatNumber === seat.seatNumber)?.controlNumber ?? 0,
-        ticketPrice: schedule.ticket.find((ticket) => ticket.seatNumber === seat.seatNumber)?.ticketPrice ?? null,
-        isComplimentary: schedule.ticket.find((ticket) => ticket.seatNumber === seat.seatNumber)?.isComplimentary,
-      }));
-    })
-    .flat();
+  const formattedSeats = seatMap.map((seat) => ({
+    seatNumber: seat.seatNumber,
+    x: seat.x,
+    y: seat.y,
+    row: seat.seatNumber.replace(/[0-9]/g, ""),
+    section: seat.seatSection,
+    status: seat.status,
+    ticketControlNumber: seat.ticket?.controlNumber ?? 0,
+    ticketPrice: seat.ticket?.ticketPrice ?? 0,
+    isComplimentary: seat.ticket?.isComplimentary ?? false,
+    distributor: seat.ticket?.users
+      ? {
+          name: `${seat.ticket.users.firstName} ${seat.ticket.users.lastName}`,
+          type: seat.ticket.users.distributor?.distributortypes?.name ?? null,
+          department: seat.ticket.users.distributor?.department?.name ?? null,
+        }
+      : null,
+  }));
 
   return formattedSeats;
 };
@@ -480,13 +466,24 @@ export const allocateTicketByControlNumber = async ({ scheduleId, distributorId,
     });
 
     if (schedule.seatingType === "controlledSeating") {
-      const ticketsWithSeats = validTickets.filter((ticket) => ticket.seatNumber);
-      if (ticketsWithSeats.length > 0) {
+      const seatNumbers = await prisma.showseats.findMany({
+        where: {
+          scheduleId,
+          ticketId: {
+            in: validTickets.map((ticket) => ticket.ticketId),
+          },
+        },
+        select: {
+          seatNumber: true,
+        },
+      });
+
+      if (seatNumbers.length > 0) {
         await prisma.showseats.updateMany({
           where: {
             scheduleId,
             seatNumber: {
-              in: ticketsWithSeats.map((ticket) => ticket.seatNumber),
+              in: seatNumbers.map((s) => s.seatNumber),
             },
           },
           data: {

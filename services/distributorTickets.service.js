@@ -66,7 +66,12 @@ export const getDistributorAllocatedTickets = async ({ distributorId, scheduleId
               status: true,
               ticketPrice: true,
               controlNumber: true,
-              seatNumber: true,
+              showseats: {
+                select: {
+                  seatNumber: true,
+                  ticketId: true,
+                },
+              },
               ticketSection: true,
             },
           },
@@ -82,7 +87,7 @@ export const getDistributorAllocatedTickets = async ({ distributorId, scheduleId
       status: t.ticket.status,
       ticketPrice: t.ticket.ticketPrice,
       controlNumber: t.ticket.controlNumber,
-      seatNumber: t.ticket.seatNumber,
+      seatNumber: t.ticket.showseats.find((seat) => seat.ticketId === t.ticket.ticketId).seatNumber,
       ticketSection: t.ticket.ticketSection,
       isRemitted: t.ticket.logtickets.length !== 0,
       dateAllocated: data.dateAllocated,

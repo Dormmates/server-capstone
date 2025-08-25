@@ -139,9 +139,12 @@ model showseats {
   status        showseats_status?     @default(available)
   x             Float                 @db.Float
   y             Float                 @db.Float
+  ticketId      String?               @db.VarChar(36)
   showschedules showschedules         @relation(fields: [scheduleId], references: [scheduleId], onDelete: Cascade, map: "showseats_ibfk_1")
+  ticket        ticket?               @relation(fields: [ticketId], references: [ticketId], onDelete: Cascade, map: "ticket_fk_2")
 
   @@id([scheduleId, seatNumber])
+  @@index([ticketId], map: "ticket_fk_2_idx")
 }
 
 model ticket {
@@ -150,13 +153,13 @@ model ticket {
   scheduleId         String                @db.VarChar(36)
   discountPercentage Decimal?              @db.Decimal(5, 2)
   status             ticket_status         @default(not_allocated)
-  seatNumber         String?               @db.VarChar(10)
   distributorId      String?               @db.VarChar(36)
   isComplimentary    Boolean?              @default(false)
   ticketPrice        Decimal?              @db.Decimal(10, 2)
   ticketSection      ticket_ticketSection?
   logtickets         logtickets[]
   reservedtickets    reservedtickets[]
+  showseats          showseats[]
   showschedules      showschedules         @relation(fields: [scheduleId], references: [scheduleId], onDelete: Cascade, map: "ticket_ibfk_1")
   users              users?                @relation(fields: [distributorId], references: [userId], onDelete: Restrict, map: "ticket_ibfk_2")
 
@@ -282,14 +285,14 @@ enum showseats_seatSection {
   balconyMiddle
 }
 
-enum ticket_ticketSection {
-  orchestra
-  balcony
-}
-
 enum ticketactionlog_actionType {
   allocate
   unallocate
   remit
   unremit
+}
+
+enum ticket_ticketSection {
+  orchestra
+  balcony
 }
