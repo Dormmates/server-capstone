@@ -34,30 +34,32 @@ export const getDistributorTicketsSummary = async ({ distributorId, scheduleId }
 };
 
 export const getDistributorAllocatedTickets = async ({ distributorId, scheduleId }) => {
-  const log = await prisma.allocationlog.findMany({
-    where: { scheduleId, distributorId },
+  const log = await prisma.ticketactionlog.findMany({
+    where: { scheduleId, distributorId, actionType: "allocate" },
     include: {
-      users_allocationlog_allocatedByTousers: {
+      users_ticketactionlog_actionByTousers: {
         select: {
           firstName: true,
           lastName: true,
           userId: true,
         },
       },
-      users_allocationlog_distributorIdTousers: {
+      users_ticketactionlog_distributorIdTousers: {
         select: {
           firstName: true,
           lastName: true,
           userId: true,
         },
       },
-      allocatedtickets: {
+      logtickets: {
         select: {
           ticket: {
             select: {
-              remittedtickets: {
-                select: {
-                  remittanceId: true,
+              logtickets: {
+                where: {
+                  ticketactionlog: {
+                    actionType: "remit",
+                  },
                 },
               },
               ticketId: true,
@@ -75,17 +77,17 @@ export const getDistributorAllocatedTickets = async ({ distributorId, scheduleId
   });
 
   const mapped = log.flatMap((data) =>
-    data.allocatedtickets.map((t) => ({
+    data.logtickets.map((t) => ({
       ticketId: t.ticket.ticketId,
       status: t.ticket.status,
       ticketPrice: t.ticket.ticketPrice,
       controlNumber: t.ticket.controlNumber,
       seatNumber: t.ticket.seatNumber,
       ticketSection: t.ticket.ticketSection,
-      isRemitted: t.ticket.remittedtickets.length !== 0,
+      isRemitted: t.ticket.logtickets.length !== 0,
       dateAllocated: data.dateAllocated,
-      allocatedBy: data.users_allocationlog_allocatedByTousers,
-      distributor: data.users_allocationlog_distributorIdTousers,
+      allocatedBy: data.users_ticketactionlog_actionByTousers,
+      distributor: data.users_ticketactionlog_distributorIdTousers,
     }))
   );
 
@@ -93,21 +95,21 @@ export const getDistributorAllocatedTickets = async ({ distributorId, scheduleId
 };
 
 export const getDistributorRemittanceHistory = async ({ distributorId, scheduleId }) => {
-  const remittanceHistory = await prisma.remittancehistory.findMany({
-    where: { remittedBy: distributorId, scheduleId },
+  const remittanceHistory = await prisma.ticketactionlog.findMany({
+    where: { distributorId, scheduleId, actionType: "remit" },
     select: {
-      users_remittancehistory_receivedByTousers: {
+      users_ticketactionlog_actionByTousers: {
         select: {
           firstName: true,
           lastName: true,
         },
       },
-      dateRemitted: true,
+      actionDate: true,
       totalRemittance: true,
-      commission: true,
+      commision: true,
       remarks: true,
-      remittanceId: true,
-      remittedtickets: {
+      actionLogId: true,
+      logtickets: {
         select: {
           ticket: {
             select: {
@@ -123,12 +125,12 @@ export const getDistributorRemittanceHistory = async ({ distributorId, scheduleI
 
   const grouped = remittanceHistory.map((log) => ({
     remittanceId: log.remittanceId,
-    receivedBy: log.users_remittancehistory_receivedByTousers.firstName + " " + log.users_remittancehistory_receivedByTousers.lastName,
-    dateRemitted: log.dateRemitted,
+    receivedBy: log.users_ticketactionlog_actionByTousers.firstName + " " + log.users_ticketactionlog_actionByTousers.lastName,
+    dateRemitted: log.actionDate,
     totalRemittance: log.totalRemittance,
-    commission: log.commission,
+    commission: log.commision,
     remarks: log.remarks,
-    tickets: log.remittedtickets.map((rt) => ({
+    tickets: log.logtickets.map((rt) => ({
       controlNumber: rt.ticket.controlNumber,
       ticketPrice: rt.ticket.ticketPrice,
       status: rt.ticket.status,
@@ -139,26 +141,26 @@ export const getDistributorRemittanceHistory = async ({ distributorId, scheduleI
 };
 
 export const getDistributorAllocationHistory = async ({ distributorId, scheduleId }) => {
-  const allocationHistory = await prisma.allocationlog.findMany({
-    where: { distributorId, scheduleId },
+  const allocationHistory = await prisma.ticketactionlog.findMany({
+    where: { distributorId, scheduleId, actionType: "allocate" },
     select: {
-      allocationLogId: true,
-      users_allocationlog_allocatedByTousers: {
+      actionLogId: true,
+      users_ticketactionlog_actionByTousers: {
         select: {
           firstName: true,
           lastName: true,
           userId: true,
         },
       },
-      users_allocationlog_distributorIdTousers: {
+      users_ticketactionlog_distributorIdTousers: {
         select: {
           firstName: true,
           lastName: true,
           userId: true,
         },
       },
-      dateAllocated: true,
-      allocatedtickets: {
+      actionDate: true,
+      logtickets: {
         select: {
           ticket: {
             select: {
@@ -178,11 +180,11 @@ export const getDistributorAllocationHistory = async ({ distributorId, scheduleI
   });
 
   const grouped = allocationHistory.map((log) => ({
-    allocationLogId: log.allocationLogId,
-    allocatedBy: log.users_allocationlog_allocatedByTousers,
-    distributor: log.users_allocationlog_distributorIdTousers,
-    dateAllocated: log.dateAllocated,
-    tickets: log.allocatedtickets.map((at) => ({
+    allocationLogId: log.actionLogId,
+    allocatedBy: log.users_ticketactionlog_actionByTousers,
+    distributor: log.users_ticketactionlog_distributorIdTousers,
+    dateAllocated: log.actionDate,
+    tickets: log.logtickets.map((at) => ({
       ticketId: at.ticket.ticketId,
       ticketPrice: at.ticket.ticketPrice,
       controlNumber: at.ticket.controlNumber,

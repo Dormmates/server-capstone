@@ -125,6 +125,8 @@ export const generateScheduleTickets = async ({ tx, scheduleId, seatPricing, sea
   }
 
   await tx.ticket.createMany({ data: tickets });
+
+  return tickets;
 };
 
 export const generateSeats = async ({ tx, seats, schedId }) => {
@@ -193,7 +195,13 @@ export const getScheduleSummary = async (scheduleId) => {
     where: {
       scheduleId,
       status: "sold",
-      remittedtickets: { none: {} },
+      logtickets: {
+        none: {
+          ticketactionlog: {
+            actionType: "remit",
+          },
+        },
+      },
     },
   });
 
@@ -225,38 +233,66 @@ export const getScheduleTickets = async (scheduleId) => {
 };
 
 export const getScheduleDistributors = async (scheduleId) => {
-  const result = await prisma.$queryRaw`
-    SELECT 
-      u.userId,
-      u.firstName,
-      u.lastName,
-      u.email,
-      d.departmentId,
-      dep.name as departmentName,
-      dt.name as distributorType,
-      COUNT(DISTINCT al.allocationLogId) as allocationCount,
-      COUNT(at.ticketId) as totalAllocated,
-      SUM(CASE WHEN t.status IN ('sold', 'remitted') THEN 1 ELSE 0 END) as totalSold
-    FROM allocationlog al
-    JOIN users u ON al.distributorId = u.userId
-    LEFT JOIN distributor d ON u.userId = d.userId
-    LEFT JOIN department dep ON d.departmentId = dep.departmentId
-    LEFT JOIN distributortypes dt ON d.distributorTypeId = dt.id
-    LEFT JOIN allocatedtickets at ON al.allocationLogId = at.allocationLogId
-    LEFT JOIN ticket t ON at.ticketId = t.ticketId
-    WHERE al.scheduleId = ${scheduleId}
-    GROUP BY u.userId, u.firstName, u.lastName, u.email, d.departmentId, dep.name, dt.name
-  `;
+  const distributors = await prisma.users.findMany({
+    where: {
+      distributor: {
+        isNot: null,
+      },
+      ticketactionlog_ticketactionlog_distributorIdTousers: {
+        some: {
+          scheduleId,
+        },
+      },
+    },
+    select: {
+      userId: true,
+      firstName: true,
+      lastName: true,
+      email: true,
+      distributor: {
+        select: {
+          department: { select: { name: true } },
+          distributortypes: { select: { name: true } },
+        },
+      },
+      ticketactionlog_ticketactionlog_distributorIdTousers: {
+        where: { scheduleId },
+        select: {
+          actionType: true,
+          logtickets: {
+            select: {
+              ticket: {
+                select: { status: true },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
 
-  return result.map((row) => ({
-    userId: row.userId,
-    name: `${row.firstName} ${row.lastName}`,
-    totalAllocated: Number(row.totalAllocated),
-    totalSold: Number(row.totalSold),
-    email: row.email,
-    department: row.departmentName ? row.departmentName : null,
-    distributorType: row.distributorType,
-  }));
+  return distributors.map((dist) => {
+    const logs = dist.ticketactionlog_ticketactionlog_distributorIdTousers;
+
+    const allocationCount = new Set(
+      logs.filter((log) => log.actionType === "allocate").map((log) => log) // one per allocation action
+    ).size;
+
+    const totalAllocated = logs.filter((log) => log.actionType === "allocate").reduce((count, log) => count + log.logtickets.length, 0);
+
+    const totalSold = logs.reduce((count, log) => count + log.logtickets.filter((lt) => ["sold", "remitted"].includes(lt.ticket.status)).length, 0);
+
+    return {
+      userId: dist.userId,
+      name: `${dist.firstName} ${dist.lastName}`,
+      allocationCount,
+      totalAllocated,
+      totalSold,
+      email: dist.email,
+      department: dist.distributor?.department?.name ?? null,
+      distributorType: dist.distributor?.distributortypes?.name ?? null,
+    };
+  });
 };
 
 export const getScheduleSeatMap = async (scheduleId) => {
@@ -414,21 +450,19 @@ export const allocateTicketByControlNumber = async ({ scheduleId, distributorId,
     }
 
     // Create allocation log with allocated tickets
-    const allocationLog = await prisma.allocationlog.create({
+    await prisma.ticketactionlog.create({
       data: {
-        allocationLogId: crypto.randomUUID(),
+        actionLogId: crypto.randomUUID(),
         scheduleId,
         distributorId,
-        allocatedBy,
-        dateAllocated: new Date(),
-        allocatedtickets: {
+        actionBy: allocatedBy,
+        actionDate: new Date(),
+        actionType: "allocate",
+        logtickets: {
           create: validTickets.map((ticket) => ({
             ticketId: ticket.ticketId,
           })),
         },
-      },
-      include: {
-        allocatedtickets: true,
       },
     });
 
@@ -465,16 +499,6 @@ export const allocateTicketByControlNumber = async ({ scheduleId, distributorId,
     return {
       success: true,
       message: `Successfully allocated ${validTickets.length} tickets`,
-      data: {
-        allocationLog,
-        allocatedCount: validTickets.length,
-        allocatedTickets: validTickets.map((ticket) => ({
-          controlNumber: ticket.controlNumber,
-          ticketId: ticket.ticketId,
-          ticketPrice: ticket.ticketPrice,
-          seatNumber: ticket.seatNumber,
-        })),
-      },
     };
   });
 };
