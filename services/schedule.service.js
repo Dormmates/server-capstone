@@ -156,7 +156,7 @@ export const getScheduleSummary = async (scheduleId) => {
   });
 
   const notAllocated = await prisma.ticket.count({
-    where: { scheduleId, status: "not_allocated" },
+    where: { scheduleId, status: "not_allocated", isComplimentary: false },
   });
 
   const unsold = await prisma.ticket.count({

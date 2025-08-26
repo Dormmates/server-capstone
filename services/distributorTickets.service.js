@@ -113,8 +113,9 @@ export const getDistributorRemittanceHistory = async ({ distributorId, scheduleI
 
 export const getDistributorAllocationHistory = async ({ distributorId, scheduleId }) => {
   const allocationHistory = await prisma.ticketactionlog.findMany({
-    where: { distributorId, scheduleId, actionType: "allocate" },
+    where: { distributorId, scheduleId, actionType: { in: ["allocate", "unallocate"] } },
     select: {
+      actionType: true,
       actionLogId: true,
       users_ticketactionlog_actionByTousers: {
         select: {
@@ -148,9 +149,13 @@ export const getDistributorAllocationHistory = async ({ distributorId, scheduleI
         },
       },
     },
+    orderBy: {
+      actionDate: "desc",
+    },
   });
 
   const grouped = allocationHistory.map((log) => ({
+    actionType: log.actionType,
     allocationLogId: log.actionLogId,
     allocatedBy: log.users_ticketactionlog_actionByTousers,
     distributor: log.users_ticketactionlog_distributorIdTousers,
