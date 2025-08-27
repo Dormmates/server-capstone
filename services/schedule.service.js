@@ -50,6 +50,80 @@ export const getSchedule = async (scheduleId) => {
   return await prisma.showschedules.findUnique({ where: { scheduleId } });
 };
 
+export const closeSchedule = async (scheduleId) => {
+  const schedule = await prisma.showschedules.findUnique({
+    where: { scheduleId },
+    select: { isOpen: true },
+  });
+
+  if (!schedule) {
+    throw new AppError("Schedule not found", HttpStatusCodes.NotFound);
+  }
+  return await prisma.showschedules.update({ where: { scheduleId }, data: { isOpen: false } });
+};
+
+export const openSchedule = async (scheduleId) => {
+  const schedule = await prisma.showschedules.findUnique({
+    where: { scheduleId },
+    select: { isOpen: true },
+  });
+
+  if (!schedule) {
+    throw new AppError("Schedule not found", HttpStatusCodes.NotFound);
+  }
+  return await prisma.showschedules.update({ where: { scheduleId }, data: { isOpen: true } });
+};
+
+export const deleteSchedule = async (scheduleId) => {
+  const schedule = await prisma.showschedules.findUnique({
+    where: { scheduleId },
+    select: { isOpen: true },
+  });
+
+  if (!schedule) {
+    throw new AppError("Schedule not found", HttpStatusCodes.NotFound);
+  }
+
+  if (schedule.isOpen) {
+    throw new AppError("Cannot delete an open schedule", HttpStatusCodes.BadRequest);
+  }
+
+  return await prisma.showschedules.delete({ where: { scheduleId } });
+};
+
+export const reschedule = async ({ scheduleId, newDateTime }) => {
+  const schedule = await prisma.showschedules.findUnique({
+    where: { scheduleId },
+    select: { isOpen: true, showId: true },
+  });
+
+  if (!schedule) {
+    throw new AppError("Schedule not found", HttpStatusCodes.NotFound);
+  }
+
+  if (!schedule.isOpen) {
+    throw new AppError("Cannot reschedule a closed schedule", HttpStatusCodes.BadRequest);
+  }
+
+  const conflicts = await prisma.showschedules.findMany({
+    where: {
+      showId: schedule.showId,
+      datetime: newDateTime,
+      NOT: { scheduleId },
+    },
+  });
+
+  if (conflicts.length > 0) {
+    const conflictDetails = conflicts.map((s) => s.datetime.toISOString().replace("T", " ").slice(0, 16));
+    throw new AppError(`Conflicting schedules already exist for: ${conflictDetails.join(", ")}`, HttpStatusCodes.Conflict);
+  }
+
+  return await prisma.showschedules.update({
+    where: { scheduleId },
+    data: { datetime: newDateTime },
+  });
+};
+
 export const generateScheduleTicketsAndSeats = async ({ tx, scheduleId, seatPricing, seats, ticketPrice, controlNumbers, seatingConfiguration }) => {
   const tickets = [];
   const seatsData = [];

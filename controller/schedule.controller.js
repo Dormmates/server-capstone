@@ -8,6 +8,8 @@ import {
 import {
   addShowSchedule,
   allocateTicket,
+  closeSchedule,
+  deleteSchedule,
   generateScheduleTicketsAndSeats,
   getScheduleDetails,
   getScheduleDistributors,
@@ -15,6 +17,8 @@ import {
   getScheduleSummary,
   getScheduleTickets,
   getShowSchedules,
+  openSchedule,
+  reschedule,
   unallocateTicket,
 } from "../services/schedule.service.js";
 import { doesShowExist } from "../services/show.service.js";
@@ -90,27 +94,90 @@ export const addShowScheduleController = asyncHandler(async (req, res) => {
   }
 });
 
+export const closeScheduleController = asyncHandler(async (req, res, next) => {
+  const { scheduleId } = req.body;
+
+  if (!scheduleId) {
+    throw new AppError("Missing Post Fields", HttpStatusCodes.BadRequest);
+  }
+
+  await closeSchedule(scheduleId);
+  res.json({ message: "Closed Schedule" });
+});
+
+export const openScheduleController = asyncHandler(async (req, res, next) => {
+  const { scheduleId } = req.body;
+
+  if (!scheduleId) {
+    throw new AppError("Missing Post Fields", HttpStatusCodes.BadRequest);
+  }
+
+  await openSchedule(scheduleId);
+  res.json({ message: "Closed Schedule" });
+});
+
+export const deleteScheduleController = asyncHandler(async (req, res, next) => {
+  const { scheduleId } = req.body;
+
+  if (!scheduleId) {
+    throw new AppError("Missing Post Fields", HttpStatusCodes.BadRequest);
+  }
+
+  await deleteSchedule(scheduleId);
+  res.json({ message: "Closed Schedule" });
+});
+
+export const rescheduleController = asyncHandler(async (req, res, next) => {
+  const { scheduleId, newDateTime } = req.body;
+
+  if (!scheduleId) {
+    throw new AppError("Missing Post Fields", HttpStatusCodes.BadRequest);
+  }
+
+  await reschedule({ scheduleId, newDateTime });
+  res.json({ message: "Closed Schedule" });
+});
+
 export const getScheduleInfoController = asyncHandler(async (req, res, next) => {
   const { scheduleId } = req.params;
+
+  if (!scheduleId) {
+    throw new AppError("Missing Post Fields", HttpStatusCodes.BadRequest);
+  }
+
   const details = await getScheduleDetails(scheduleId);
   res.json(details);
 });
 
 export const getScheudleSummaryController = asyncHandler(async (req, res, nexr) => {
   const { scheduleId } = req.params;
-  const summary = await getScheduleSummary(scheduleId);
 
+  if (!scheduleId) {
+    throw new AppError("Missing Post Fields", HttpStatusCodes.BadRequest);
+  }
+
+  const summary = await getScheduleSummary(scheduleId);
   res.json(summary);
 });
 
 export const getScheduleTicketsController = asyncHandler(async (req, res, next) => {
   const { scheduleId } = req.params;
+
+  if (!scheduleId) {
+    throw new AppError("Missing Post Fields", HttpStatusCodes.BadRequest);
+  }
+
   const tickets = await getScheduleTickets(scheduleId);
   res.json(tickets);
 });
 
 export const getScheduleDistributorsController = asyncHandler(async (req, res, next) => {
   const { scheduleId } = req.params;
+
+  if (!scheduleId) {
+    throw new AppError("Missing Post Fields", HttpStatusCodes.BadRequest);
+  }
+
   const distributors = await getScheduleDistributors(scheduleId);
   res.json(distributors);
 });
@@ -139,12 +206,22 @@ export const unAllocateTicketController = asyncHandler(async (req, res, next) =>
 
 export const getScheduleSeatMapController = asyncHandler(async (req, res, next) => {
   const { scheduleId } = req.params;
+
+  if (!scheduleId) {
+    throw new AppError("Missing Post Fields", HttpStatusCodes.BadRequest);
+  }
+
   const seatMap = await getScheduleSeatMap(scheduleId);
   res.json(seatMap);
 });
 
 export const getTicketsAllocatedOfDistributorController = asyncHandler(async (req, res, next) => {
   const { scheduleId, distributorId } = req.params;
+
+  if (!scheduleId || !distributorId) {
+    throw new AppError("Missing Post Fields", HttpStatusCodes.BadRequest);
+  }
+
   const data = await getDistributorAllocatedTickets({ distributorId, scheduleId });
   res.json(data);
 });
@@ -158,12 +235,22 @@ export const getDistributorAllocationHistoryController = asyncHandler(async (req
 
 export const getDistributorRemittanceHistoryController = asyncHandler(async (req, res, next) => {
   const { scheduleId, distributorId } = req.params;
+
+  if (!scheduleId || !distributorId) {
+    throw new AppError("Missing Post Fields", HttpStatusCodes.BadRequest);
+  }
+
   const data = await getDistributorRemittanceHistory({ distributorId, scheduleId });
   res.json(data);
 });
 
 export const getDistributorTicketsSummaryController = asyncHandler(async (req, res, next) => {
   const { scheduleId, distributorId } = req.params;
+
+  if (!scheduleId || !distributorId) {
+    throw new AppError("Missing Post Fields", HttpStatusCodes.BadRequest);
+  }
+
   const data = await getDistributorTicketsSummary({ distributorId, scheduleId });
   res.json(data);
 });

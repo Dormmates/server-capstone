@@ -2,6 +2,8 @@ import express from "express";
 import {
   addShowScheduleController,
   allocateTicketController,
+  closeScheduleController,
+  deleteScheduleController,
   getDistributorAllocationHistoryController,
   getDistributorRemittanceHistoryController,
   getDistributorTicketsSummaryController,
@@ -12,6 +14,8 @@ import {
   getScheudleSummaryController,
   getShowSchedulesController,
   getTicketsAllocatedOfDistributorController,
+  openScheduleController,
+  rescheduleController,
   unAllocateTicketController,
 } from "../controller/schedule.controller.js";
 import { requireRole, verifyAuth } from "../middleware/auth.middleware.js";
@@ -19,8 +23,13 @@ import { requireRole, verifyAuth } from "../middleware/auth.middleware.js";
 export const router = express.Router();
 
 router.get("/", getShowSchedulesController);
-
 router.get("/:scheduleId", getScheduleInfoController);
+
+router.post("/closeSchedule", verifyAuth, requireRole("head", "trainer"), closeScheduleController);
+router.post("/openSchedule", verifyAuth, requireRole("head", "trainer"), openScheduleController);
+router.post("/deleteSchedule", verifyAuth, requireRole("head", "trainer"), deleteScheduleController);
+router.post("/reschedule", verifyAuth, requireRole("head", "trainer"), rescheduleController);
+
 router.get("/summary/:scheduleId", getScheudleSummaryController);
 router.get("/tickets/:scheduleId", getScheduleTicketsController);
 router.get("/distributors/:scheduleId", getScheduleDistributorsController);
