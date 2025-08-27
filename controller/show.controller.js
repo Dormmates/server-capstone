@@ -90,13 +90,13 @@ export const getArchivedShowsController = asyncHandler(async (req, res) => {
 });
 
 export const archiveShowController = asyncHandler(async (req, res) => {
-  const { showId } = req.params;
+  const { showId } = req.body;
 
   if (!showId) {
     throw new AppError("Show ID is required", HttpStatusCodes.BadRequest);
   }
 
-  const exists = await doesShowExist(id);
+  const exists = await doesShowExist(showId);
 
   if (!exists) {
     throw new AppError("Show Not Found", HttpStatusCodes.NotFound);
@@ -107,13 +107,13 @@ export const archiveShowController = asyncHandler(async (req, res) => {
 });
 
 export const unArchiveShowController = asyncHandler(async (req, res) => {
-  const { showId } = req.params;
+  const { showId } = req.body;
 
   if (!showId) {
     throw new AppError("Show ID is required", HttpStatusCodes.BadRequest);
   }
 
-  const exists = await doesShowExist(id);
+  const exists = await doesShowExist(showId);
 
   if (!exists) {
     throw new AppError("Show Not Found", HttpStatusCodes.NotFound);
@@ -129,7 +129,7 @@ export const deleteShowController = asyncHandler(async (req, res) => {
     throw new AppError("Show ID is required", HttpStatusCodes.BadRequest);
   }
 
-  const exists = await doesShowExist(id);
+  const exists = await doesShowExist(showId);
 
   if (!exists) {
     throw new AppError("Show Not Found", HttpStatusCodes.NotFound);

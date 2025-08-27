@@ -172,10 +172,7 @@ export const editDistributorAccount = async ({ userId, firstName, lastName, emai
       distributor: {
         update: {
           where: {
-            userId_distributorTypeId: {
-              userId,
-              distributorTypeId: currentDistributor.distributorTypeId,
-            },
+            userId,
           },
           data: {
             contactNumber,

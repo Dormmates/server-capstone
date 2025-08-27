@@ -106,9 +106,8 @@ export const updateShow = async ({ showId, showTitle, coverImage, description, d
   });
 };
 
-export const getShows = async ({ departmentId, showType, isArchived = false }) => {
+export const getShows = async ({ departmentId, showType }) => {
   const where = {
-    isArchived,
     ...(departmentId && {
       OR: [{ departmentId }, { departmentId: null }],
     }),
@@ -164,9 +163,15 @@ export const getShow = async ({ id }) => {
 };
 
 export const archiveShow = async (showId) => {
-  return await prisma.shows.update({
-    where: { showId },
-    data: { isArchived: true },
+  await prisma.$transaction(async (tx) => {
+    await tx.shows.update({
+      where: { showId },
+      data: { isArchived: true },
+    });
+
+    await tx.showschedules.deleteMany({
+      where: { showId },
+    });
   });
 };
 
