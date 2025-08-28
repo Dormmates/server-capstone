@@ -4,6 +4,8 @@ import {
   getDistributorAllocatedTickets,
   getDistributorAllocationHistory,
   getDistributorRemittanceHistory,
+  markTicketAsSold,
+  markTicketAsUnSold,
 } from "../services/distributorTickets.service.js";
 import {
   addShowSchedule,
@@ -253,4 +255,26 @@ export const getDistributorTicketsSummaryController = asyncHandler(async (req, r
 
   const data = await getDistributorTicketsSummary({ distributorId, scheduleId });
   res.json(data);
+});
+
+export const markTicketAsSoldController = asyncHandler(async (req, res, next) => {
+  const { scheduleId, controlNumbers, distributorId, customerName, email, isIncluded } = req.body;
+
+  if (!scheduleId || !distributorId || !controlNumbers) {
+    throw new AppError("Missing Post Fields", HttpStatusCodes.BadRequest);
+  }
+
+  await markTicketAsSold({ scheduleId, controlNumbers, distributorId });
+  res.json({ message: "Marked as sold" });
+});
+
+export const markTicketAsUnSoldController = asyncHandler(async (req, res, next) => {
+  const { scheduleId, controlNumbers, distributorId } = req.body;
+
+  if (!scheduleId || !distributorId || !controlNumbers) {
+    throw new AppError("Missing Post Fields", HttpStatusCodes.BadRequest);
+  }
+
+  await markTicketAsUnSold({ scheduleId, controlNumbers, distributorId });
+  res.json({ message: "Marked as unsold" });
 });

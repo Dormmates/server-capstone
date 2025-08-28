@@ -1,5 +1,6 @@
 import { asyncHandler } from "../middleware/asyncHandler.middleware.js";
 import { AppError, HttpStatusCodes } from "../middleware/errorHandler.middleware.js";
+import { getDistributorShowsAndTicketsAllocated } from "../services/distributorTickets.service.js";
 import { archiveShow, createShow, deleteShow, doesShowExist, getShow, getShows, unArchiveShow, updateShow } from "../services/show.service.js";
 
 export const createShowController = asyncHandler(async (req, res, next) => {
@@ -137,4 +138,11 @@ export const deleteShowController = asyncHandler(async (req, res) => {
 
   await deleteShow(showId);
   res.status(HttpStatusCodes.OK).json({ message: "Show deleted successfully." });
+});
+
+export const getDistributorShowsAndTicketsAllocatedController = asyncHandler(async (req, res, next) => {
+  const { distributorId } = req.params;
+
+  const data = await getDistributorShowsAndTicketsAllocated({ distributorId });
+  res.json(data);
 });

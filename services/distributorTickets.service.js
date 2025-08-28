@@ -5,7 +5,9 @@ export const getDistributorAllocatedTickets = async ({ distributorId, scheduleId
     where: {
       distributorId,
       scheduleId,
-      status: "allocated",
+      status: {
+        in: ["allocated", "sold", "lost"],
+      },
     },
     select: {
       ticketId: true,
@@ -168,4 +170,152 @@ export const getDistributorAllocationHistory = async ({ distributorId, scheduleI
   }));
 
   return grouped;
+};
+
+export const getDistributorShowsAndTicketsAllocated = async ({ distributorId }) => {
+  const allocatedTickets = await prisma.ticket.findMany({
+    where: {
+      distributorId,
+      status: {
+        in: ["allocated", "sold", "lost"],
+      },
+      showschedules: {
+        isOpen: true,
+        isArchived: false,
+        shows: {
+          isArchived: false,
+        },
+      },
+    },
+    select: {
+      ticketId: true,
+      controlNumber: true,
+      ticketPrice: true,
+      ticketSection: true,
+      showseats: {
+        select: { seatNumber: true },
+        take: 1,
+      },
+      showschedules: {
+        select: {
+          datetime: true,
+          commissionFee: true,
+          scheduleId: true,
+          seatingType: true,
+          shows: {
+            select: {
+              showCover: true,
+              showId: true,
+              title: true,
+            },
+          },
+        },
+      },
+      status: true,
+      logtickets: {
+        select: {
+          ticketactionlog: {
+            select: {
+              actionType: true,
+              actionBy: true,
+              actionDate: true,
+            },
+          },
+        },
+      },
+    },
+    orderBy: {
+      controlNumber: "asc",
+    },
+  });
+
+  // Transform all tickets
+  const mappedTickets = allocatedTickets.map((ticket) => {
+    const allocationLog = ticket.logtickets.find((lt) => lt.ticketactionlog.actionType === "allocate");
+    const remittedLog = ticket.logtickets.find((lt) => lt.ticketactionlog.actionType === "remit");
+
+    return {
+      scheduleId: ticket.showschedules?.scheduleId ?? null,
+      datetime: ticket.showschedules?.datetime ?? null,
+      commissionFee: ticket.showschedules?.commissionFee ?? null,
+      seatingType: ticket.showschedules?.seatingType ?? null,
+      show: ticket.showschedules?.shows ?? null,
+      ticketId: ticket.ticketId,
+      status: ticket.status,
+      ticketPrice: ticket.ticketPrice,
+      controlNumber: ticket.controlNumber,
+      seatNumber: ticket.showseats[0]?.seatNumber ?? null,
+      ticketSection: ticket.ticketSection,
+      isRemitted: !!remittedLog,
+      dateAllocated: allocationLog?.ticketactionlog.actionDate ?? null,
+      allocatedBy: allocationLog?.ticketactionlog.actionBy ?? null,
+    };
+  });
+
+  // Group by scheduleId
+  const groupedBySchedule = mappedTickets.reduce((acc, ticket) => {
+    if (!ticket.scheduleId) return acc;
+
+    if (!acc[ticket.scheduleId]) {
+      acc[ticket.scheduleId] = {
+        scheduleId: ticket.scheduleId,
+        datetime: ticket.datetime,
+        commissionFee: ticket.commissionFee,
+        seatingType: ticket.seatingType,
+        show: ticket.show,
+        tickets: [],
+      };
+    }
+
+    acc[ticket.scheduleId].tickets.push(ticket);
+    return acc;
+  }, {});
+
+  return Object.values(groupedBySchedule);
+};
+
+export const markTicketAsSold = async ({ distributorId, scheduleId, controlNumbers, customerName, email, isIncluded }) => {
+  await prisma.$transaction(async (tx) => {
+    const updateData = {
+      status: "sold",
+    };
+
+    if (isIncluded) {
+      updateData.customerName = customerName;
+      updateData.customerEmail = email;
+    }
+
+    await tx.ticket.updateMany({
+      where: {
+        distributorId,
+        scheduleId,
+        controlNumber: {
+          in: controlNumbers,
+        },
+      },
+      data: updateData,
+    });
+  });
+  //should also send notification to the trainer
+};
+
+export const markTicketAsUnSold = async ({ distributorId, scheduleId, controlNumbers }) => {
+  await prisma.$transaction(async (tx) => {
+    tx.ticket.updateMany({
+      where: {
+        distributorId,
+        scheduleId,
+        controlNumber: {
+          in: controlNumbers,
+        },
+      },
+      data: {
+        status: "allocated",
+        customerEmail: null,
+        customerName: null,
+      },
+    });
+
+    //should also send notification to the trainer
+  });
 };

@@ -8,6 +8,7 @@ import {
   getArchivedShowsController,
   updateShowController,
   deleteShowController,
+  getDistributorShowsAndTicketsAllocatedController,
 } from "../controller/show.controller.js";
 import { requireRole, verifyAuth } from "../middleware/auth.middleware.js";
 import upload from "../utils/upload.js";
@@ -23,5 +24,6 @@ router.post("/delete", verifyAuth, requireRole("head", "trainer"), deleteShowCon
 router.get("/:id", getShowController);
 router.get("/", getShowsController);
 router.get("/archived", getArchivedShowsController);
+router.get("/distributors/:distributorId/tickets", verifyAuth, requireRole("distributor"), getDistributorShowsAndTicketsAllocatedController);
 
 router.patch("/", verifyAuth, requireRole("head", "trainer"), upload.single("image"), updateWithReplace, updateShowController);

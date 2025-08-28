@@ -14,6 +14,8 @@ import {
   getScheudleSummaryController,
   getShowSchedulesController,
   getTicketsAllocatedOfDistributorController,
+  markTicketAsSoldController,
+  markTicketAsUnSoldController,
   openScheduleController,
   rescheduleController,
   unAllocateTicketController,
@@ -43,3 +45,6 @@ router.get("/:scheduleId/ticketSummary/:distributorId", getDistributorTicketsSum
 router.post("/", verifyAuth, requireRole("head", "trainer"), addShowScheduleController);
 router.post("/allocate/controlNumber", verifyAuth, requireRole("head", "trainer"), allocateTicketController);
 router.post("/unallocate/controlNumber", verifyAuth, requireRole("head", "trainer"), unAllocateTicketController);
+
+router.post("/markSold", verifyAuth, requireRole("distributor"), markTicketAsSoldController);
+router.post("/markUnsold", verifyAuth, requireRole("distributor"), markTicketAsUnSoldController);

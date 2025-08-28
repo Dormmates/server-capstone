@@ -157,6 +157,8 @@ model ticket {
   isComplimentary    Boolean?              @default(false)
   ticketPrice        Decimal?              @db.Decimal(10, 2)
   ticketSection      ticket_ticketSection?
+  customerName       String?               @db.VarChar(45)
+  customerEmail      String?               @db.VarChar(45)
   logtickets         logtickets[]
   reservedtickets    reservedtickets[]
   showseats          showseats[]
