@@ -20,6 +20,7 @@ import {
   getScheduleTickets,
   getShowSchedules,
   openSchedule,
+  remitTicketSales,
   reschedule,
   unallocateTicket,
 } from "../services/schedule.service.js";
@@ -277,4 +278,15 @@ export const markTicketAsUnSoldController = asyncHandler(async (req, res, next) 
 
   await markTicketAsUnSold({ scheduleId, controlNumbers, distributorId });
   res.json({ message: "Marked as unsold" });
+});
+
+export const remitTicketSalesController = asyncHandler(async (req, res, next) => {
+  const { sold, lost, discounted, discountPercentage, scheduleId, distributorId, actionBy } = req.body;
+
+  if ((!sold || !lost || !scheduleId || !distributorId, !actionBy)) {
+    throw new AppError("Missing Post Fields", HttpStatusCodes.BadRequest);
+  }
+
+  await remitTicketSales({ sold, lost, discounted, discountPercentage, scheduleId, distributorId, actionBy });
+  res.json({ message: "Remitted" });
 });

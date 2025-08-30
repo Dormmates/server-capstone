@@ -17,6 +17,7 @@ import {
   markTicketAsSoldController,
   markTicketAsUnSoldController,
   openScheduleController,
+  remitTicketSalesController,
   rescheduleController,
   unAllocateTicketController,
 } from "../controller/schedule.controller.js";
@@ -46,5 +47,6 @@ router.post("/", verifyAuth, requireRole("head", "trainer"), addShowScheduleCont
 router.post("/allocate/controlNumber", verifyAuth, requireRole("head", "trainer"), allocateTicketController);
 router.post("/unallocate/controlNumber", verifyAuth, requireRole("head", "trainer"), unAllocateTicketController);
 
+router.post("/remit", verifyAuth, requireRole("head", "trainer"), remitTicketSalesController);
 router.post("/markSold", verifyAuth, requireRole("distributor"), markTicketAsSoldController);
 router.post("/markUnsold", verifyAuth, requireRole("distributor"), markTicketAsUnSoldController);

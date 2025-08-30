@@ -5,9 +5,6 @@ export const getDistributorAllocatedTickets = async ({ distributorId, scheduleId
     where: {
       distributorId,
       scheduleId,
-      status: {
-        in: ["allocated", "sold", "lost"],
-      },
     },
     select: {
       ticketId: true,
@@ -45,7 +42,6 @@ export const getDistributorAllocatedTickets = async ({ distributorId, scheduleId
 
   const mapped = allocatedTickets.map((ticket) => {
     const allocationLog = ticket.logtickets.find((lt) => lt.ticketactionlog.actionType === "allocate");
-    const remittedLog = ticket.logtickets.find((lt) => lt.ticketactionlog.actionType === "remit");
 
     return {
       ticketId: ticket.ticketId,
@@ -54,13 +50,12 @@ export const getDistributorAllocatedTickets = async ({ distributorId, scheduleId
       controlNumber: ticket.controlNumber,
       seatNumber: ticket.showseats[0]?.seatNumber ?? null,
       ticketSection: ticket.ticketSection,
-      isRemitted: !!remittedLog,
       dateAllocated: allocationLog?.ticketactionlog.actionDate ?? null,
       allocatedBy: allocationLog?.ticketactionlog.actionBy ?? null,
-      distributor:
-        allocationLog?.ticketactionlog.users_ticketactionlog_distributorIdTousers.firstName +
-          " " +
-          allocationLog?.ticketactionlog.users_ticketactionlog_distributorIdTousers.lastName ?? null,
+      isRemitted: ["lost", "remitted"].includes(ticket.status),
+      distributor: allocationLog?.ticketactionlog.users_ticketactionlog_distributorIdTousers
+        ? `${allocationLog.ticketactionlog.users_ticketactionlog_distributorIdTousers.firstName} ${allocationLog.ticketactionlog.users_ticketactionlog_distributorIdTousers.lastName}`
+        : null,
     };
   });
 
@@ -176,9 +171,6 @@ export const getDistributorShowsAndTicketsAllocated = async ({ distributorId }) 
   const allocatedTickets = await prisma.ticket.findMany({
     where: {
       distributorId,
-      status: {
-        in: ["allocated", "sold", "lost"],
-      },
       showschedules: {
         isOpen: true,
         isArchived: false,
@@ -229,10 +221,9 @@ export const getDistributorShowsAndTicketsAllocated = async ({ distributorId }) 
     },
   });
 
-  // Transform all tickets
+  // Transform tickets
   const mappedTickets = allocatedTickets.map((ticket) => {
     const allocationLog = ticket.logtickets.find((lt) => lt.ticketactionlog.actionType === "allocate");
-    const remittedLog = ticket.logtickets.find((lt) => lt.ticketactionlog.actionType === "remit");
 
     return {
       scheduleId: ticket.showschedules?.scheduleId ?? null,
@@ -246,7 +237,7 @@ export const getDistributorShowsAndTicketsAllocated = async ({ distributorId }) 
       controlNumber: ticket.controlNumber,
       seatNumber: ticket.showseats[0]?.seatNumber ?? null,
       ticketSection: ticket.ticketSection,
-      isRemitted: !!remittedLog,
+      isRemitted: ["lost", "remitted"].includes(ticket.status),
       dateAllocated: allocationLog?.ticketactionlog.actionDate ?? null,
       allocatedBy: allocationLog?.ticketactionlog.actionBy ?? null,
     };

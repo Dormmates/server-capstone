@@ -205,7 +205,7 @@ export const getScheduleSummary = async (scheduleId) => {
   });
 
   const current = await prisma.ticket.aggregate({
-    where: { scheduleId, status: "sold", isComplimentary: false },
+    where: { scheduleId, status: { in: ["lost", "sold", "remitted"] }, isComplimentary: false },
     _sum: { ticketPrice: true },
   });
 
@@ -226,7 +226,7 @@ export const getScheduleSummary = async (scheduleId) => {
   });
 
   const sold = await prisma.ticket.count({
-    where: { scheduleId, status: "sold", isComplimentary: false },
+    where: { scheduleId, status: { in: ["lost", "sold", "remitted"] }, isComplimentary: false },
   });
 
   const notAllocated = await prisma.ticket.count({
@@ -241,13 +241,6 @@ export const getScheduleSummary = async (scheduleId) => {
     where: {
       scheduleId,
       status: "sold",
-      logtickets: {
-        none: {
-          ticketactionlog: {
-            actionType: "remit",
-          },
-        },
-      },
     },
   });
 
@@ -275,7 +268,12 @@ export const getScheduleTickets = async (scheduleId) => {
       controlNumber: "asc",
     },
   });
-  return tickets;
+  const mapped = tickets.map((ticket) => ({
+    ...ticket,
+    isRemitted: ticket.status === "lost" || ticket.status === "sold" || ticket.status === "remitted",
+  }));
+
+  return mapped;
 };
 
 export const getScheduleDistributors = async (scheduleId) => {
@@ -309,12 +307,11 @@ export const getScheduleDistributors = async (scheduleId) => {
   return distributors.map((dist) => {
     const allocatedTickets = dist.ticket.filter((t) => t.status === "allocated");
     const totalAllocated = allocatedTickets.length;
-    const totalSold = dist.ticket.filter((t) => ["sold", "remitted"].includes(t.status)).length;
+    const totalSold = dist.ticket.filter((t) => ["sold", "remitted", "lost"].includes(t.status)).length;
 
     return {
       userId: dist.userId,
       name: `${dist.firstName} ${dist.lastName}`,
-      allocationCount: totalAllocated, // each ticket counts as one allocation
       totalAllocated,
       totalSold,
       email: dist.email,
@@ -730,5 +727,100 @@ export const unallocateTicket = async ({ scheduleId, distributorId, unallocatedB
       success: true,
       message: `Successfully unallocated ${validTickets.length} tickets`,
     };
+  });
+};
+
+export const remitTicketSales = async ({
+  sold,
+  lost,
+  discounted = [],
+  discountPercentage = null,
+  scheduleId,
+  distributorId,
+  actionBy,
+  remarks = null,
+}) => {
+  // Validate schedule
+  const schedule = await prisma.showschedules.findUnique({
+    where: { scheduleId },
+  });
+  if (!schedule) {
+    throw new AppError("Provided Schedule does not exist");
+  }
+
+  // Validate distributor
+  const distributor = await prisma.users.findUnique({
+    where: { userId: distributorId },
+  });
+  if (!distributor) {
+    throw new AppError("Distributor not found");
+  }
+
+  // Combine all control numbers for mapping
+  const allControlNumbers = [...sold, ...lost, ...discounted];
+
+  // Map controlNumber → ticketId
+  const tickets = await prisma.ticket.findMany({
+    where: { scheduleId, controlNumber: { in: allControlNumbers } },
+    select: { ticketId: true, controlNumber: true },
+  });
+  const ticketIdMap = Object.fromEntries(tickets.map((t) => [t.controlNumber, t.ticketId]));
+
+  // Action log ID
+  const actionLogId = crypto.randomUUID();
+
+  await prisma.$transaction(async (tx) => {
+    // Sold → remitted
+    if (sold.length > 0) {
+      await tx.ticket.updateMany({
+        where: { scheduleId, controlNumber: { in: sold } },
+        data: { status: "remitted" },
+      });
+    }
+
+    // Lost → lost
+    if (lost.length > 0) {
+      await tx.ticket.updateMany({
+        where: { scheduleId, controlNumber: { in: lost } },
+        data: { status: "lost" },
+      });
+    }
+
+    // Discounted tickets → set discount
+    if (discounted.length > 0 && discountPercentage !== null) {
+      await tx.ticket.updateMany({
+        where: { scheduleId, controlNumber: { in: discounted } },
+        data: { discountPercentage },
+      });
+    }
+
+    // Create ticket action log
+    await tx.ticketactionlog.create({
+      data: {
+        actionLogId,
+        actionBy,
+        distributorId,
+        scheduleId,
+        remarks,
+        actionType: "remit",
+        logtickets: {
+          createMany: {
+            data: [
+              ...sold.map((cn) => ({
+                ticketId: ticketIdMap[cn],
+              })),
+              ...lost.map((cn) => ({
+                ticketId: ticketIdMap[cn],
+              })),
+              ...(discounted.length > 0
+                ? discounted.map((cn) => ({
+                    ticketId: ticketIdMap[cn],
+                  }))
+                : []),
+            ],
+          },
+        },
+      },
+    });
   });
 };
