@@ -12,7 +12,7 @@ export const getDistributorAllocatedTickets = async ({ distributorId, scheduleId
       ticketPrice: true,
       ticketSection: true,
       showseats: {
-        select: { seatNumber: true },
+        select: { seatNumber: true, seatSection: true },
         take: 1,
       },
       status: true,
@@ -50,6 +50,7 @@ export const getDistributorAllocatedTickets = async ({ distributorId, scheduleId
       controlNumber: ticket.controlNumber,
       seatNumber: ticket.showseats[0]?.seatNumber ?? null,
       ticketSection: ticket.ticketSection,
+      seatSection: ticket.showseats[0]?.seatSection ?? null,
       dateAllocated: allocationLog?.ticketactionlog.actionDate ?? null,
       allocatedBy: allocationLog?.ticketactionlog.actionBy ?? null,
       isRemitted: ["lost", "remitted"].includes(ticket.status),
@@ -64,7 +65,7 @@ export const getDistributorAllocatedTickets = async ({ distributorId, scheduleId
 
 export const getDistributorRemittanceHistory = async ({ distributorId, scheduleId }) => {
   const remittanceHistory = await prisma.ticketactionlog.findMany({
-    where: { distributorId, scheduleId, actionType: "remit" },
+    where: { distributorId, scheduleId, actionType: { in: ["remit", "unremit"] } },
     select: {
       users_ticketactionlog_actionByTousers: {
         select: {
@@ -77,6 +78,8 @@ export const getDistributorRemittanceHistory = async ({ distributorId, scheduleI
       commision: true,
       remarks: true,
       actionLogId: true,
+      actionType: true,
+
       logtickets: {
         select: {
           ticket: {
@@ -84,24 +87,35 @@ export const getDistributorRemittanceHistory = async ({ distributorId, scheduleI
               controlNumber: true,
               ticketPrice: true,
               status: true,
+              discountPercentage: true,
+              showseats: {
+                select: {
+                  seatSection: true,
+                },
+                take: 1,
+              },
             },
           },
         },
       },
     },
+    orderBy: {
+      actionDate: "desc",
+    },
   });
 
   const grouped = remittanceHistory.map((log) => ({
-    remittanceId: log.remittanceId,
+    remittanceId: log.actionLogId,
+    actionType: log.actionType,
     receivedBy: log.users_ticketactionlog_actionByTousers.firstName + " " + log.users_ticketactionlog_actionByTousers.lastName,
     dateRemitted: log.actionDate,
-    totalRemittance: log.totalRemittance,
-    commission: log.commision,
     remarks: log.remarks,
     tickets: log.logtickets.map((rt) => ({
       controlNumber: rt.ticket.controlNumber,
       ticketPrice: rt.ticket.ticketPrice,
       status: rt.ticket.status,
+      discountPercentage: rt.ticket.discountPercentage,
+      seatSection: rt.ticket.showseats[0]?.seatSection ?? null,
     })),
   }));
 
@@ -128,6 +142,7 @@ export const getDistributorAllocationHistory = async ({ distributorId, scheduleI
           userId: true,
         },
       },
+      remarks: true,
       actionDate: true,
       logtickets: {
         select: {
@@ -139,11 +154,6 @@ export const getDistributorAllocationHistory = async ({ distributorId, scheduleI
             },
           },
         },
-        orderBy: {
-          ticket: {
-            controlNumber: "asc",
-          },
-        },
       },
     },
     orderBy: {
@@ -153,6 +163,7 @@ export const getDistributorAllocationHistory = async ({ distributorId, scheduleI
 
   const grouped = allocationHistory.map((log) => ({
     actionType: log.actionType,
+    remarks: log.remarks,
     allocationLogId: log.actionLogId,
     allocatedBy: log.users_ticketactionlog_actionByTousers,
     distributor: log.users_ticketactionlog_distributorIdTousers,

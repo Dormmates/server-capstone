@@ -281,12 +281,12 @@ export const markTicketAsUnSoldController = asyncHandler(async (req, res, next) 
 });
 
 export const remitTicketSalesController = asyncHandler(async (req, res, next) => {
-  const { sold, lost, discounted, discountPercentage, scheduleId, distributorId, actionBy } = req.body;
+  const { sold, lost, discounted, discountPercentage, scheduleId, distributorId, actionBy, remarks } = req.body;
 
   if ((!sold || !lost || !scheduleId || !distributorId, !actionBy)) {
     throw new AppError("Missing Post Fields", HttpStatusCodes.BadRequest);
   }
 
-  await remitTicketSales({ sold, lost, discounted, discountPercentage, scheduleId, distributorId, actionBy });
+  await remitTicketSales({ sold, lost, discounted, discountPercentage, scheduleId, distributorId, actionBy, remarks });
   res.json({ message: "Remitted" });
 });

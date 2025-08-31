@@ -776,6 +776,12 @@ export const remitTicketSales = async ({
         where: { scheduleId, controlNumber: { in: sold } },
         data: { status: "remitted" },
       });
+
+      // Update seat status to sold
+      await tx.showseats.updateMany({
+        where: { scheduleId, ticketId: { in: sold.map((cn) => ticketIdMap[cn]) } },
+        data: { status: "sold" },
+      });
     }
 
     // Lost → lost
@@ -784,6 +790,12 @@ export const remitTicketSales = async ({
         where: { scheduleId, controlNumber: { in: lost } },
         data: { status: "lost" },
       });
+
+      // Update seat status to sold
+      await tx.showseats.updateMany({
+        where: { scheduleId, ticketId: { in: sold.map((cn) => ticketIdMap[cn]) } },
+        data: { status: "sold" },
+      });
     }
 
     // Discounted tickets → set discount
@@ -791,6 +803,12 @@ export const remitTicketSales = async ({
       await tx.ticket.updateMany({
         where: { scheduleId, controlNumber: { in: discounted } },
         data: { discountPercentage },
+      });
+
+      // Update seat status to sold
+      await tx.showseats.updateMany({
+        where: { scheduleId, ticketId: { in: sold.map((cn) => ticketIdMap[cn]) } },
+        data: { status: "sold" },
       });
     }
 
@@ -812,11 +830,6 @@ export const remitTicketSales = async ({
               ...lost.map((cn) => ({
                 ticketId: ticketIdMap[cn],
               })),
-              ...(discounted.length > 0
-                ? discounted.map((cn) => ({
-                    ticketId: ticketIdMap[cn],
-                  }))
-                : []),
             ],
           },
         },
