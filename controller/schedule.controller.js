@@ -236,6 +236,13 @@ export const getDistributorAllocationHistoryController = asyncHandler(async (req
   res.json(data);
 });
 
+export const getAllDistributorAllocationHistoryController = asyncHandler(async (req, res, next) => {
+  const { distributorId } = req.params;
+  const data = await getDistributorAllocationHistory({ distributorId, scheduleId: null });
+
+  res.json(data);
+});
+
 export const getDistributorRemittanceHistoryController = asyncHandler(async (req, res, next) => {
   const { scheduleId, distributorId } = req.params;
 
@@ -244,6 +251,17 @@ export const getDistributorRemittanceHistoryController = asyncHandler(async (req
   }
 
   const data = await getDistributorRemittanceHistory({ distributorId, scheduleId });
+  res.json(data);
+});
+
+export const getAllDistributorRemittanceHistoryController = asyncHandler(async (req, res, next) => {
+  const { distributorId } = req.params;
+
+  if (!distributorId) {
+    throw new AppError("Missing Post Fields", HttpStatusCodes.BadRequest);
+  }
+
+  const data = await getDistributorRemittanceHistory({ distributorId, scheduleId: null });
   res.json(data);
 });
 

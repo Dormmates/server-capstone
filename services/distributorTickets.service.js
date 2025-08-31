@@ -1,3 +1,4 @@
+import { AppError } from "../middleware/errorHandler.middleware.js";
 import prisma from "../utils/primsa.connection.js";
 
 export const getDistributorAllocatedTickets = async ({ distributorId, scheduleId }) => {
@@ -64,9 +65,16 @@ export const getDistributorAllocatedTickets = async ({ distributorId, scheduleId
 };
 
 export const getDistributorRemittanceHistory = async ({ distributorId, scheduleId }) => {
+  const whereClause = {
+    distributorId,
+    actionType: { in: ["remit", "unremit"] },
+    ...(scheduleId && { scheduleId }), // only add if provided
+  };
+
   const remittanceHistory = await prisma.ticketactionlog.findMany({
-    where: { distributorId, scheduleId, actionType: { in: ["remit", "unremit"] } },
+    where: whereClause,
     select: {
+      scheduleId: true,
       users_ticketactionlog_actionByTousers: {
         select: {
           firstName: true,
@@ -79,7 +87,19 @@ export const getDistributorRemittanceHistory = async ({ distributorId, scheduleI
       remarks: true,
       actionLogId: true,
       actionType: true,
-
+      showschedules: {
+        select: {
+          datetime: true,
+          seatingType: true,
+          commissionFee: true,
+          shows: {
+            select: {
+              showCover: true,
+              title: true,
+            },
+          },
+        },
+      },
       logtickets: {
         select: {
           ticket: {
@@ -104,30 +124,68 @@ export const getDistributorRemittanceHistory = async ({ distributorId, scheduleI
     },
   });
 
-  const grouped = remittanceHistory.map((log) => ({
-    remittanceId: log.actionLogId,
-    actionType: log.actionType,
-    receivedBy: log.users_ticketactionlog_actionByTousers.firstName + " " + log.users_ticketactionlog_actionByTousers.lastName,
-    dateRemitted: log.actionDate,
-    remarks: log.remarks,
-    tickets: log.logtickets.map((rt) => ({
+  // Map and compute totals
+  const mapped = remittanceHistory.map((log) => {
+    const tickets = log.logtickets.map((rt) => ({
       controlNumber: rt.ticket.controlNumber,
-      ticketPrice: rt.ticket.ticketPrice,
+      ticketPrice: Number(rt.ticket.ticketPrice || 0),
+      discountPercentage: Number(rt.ticket.discountPercentage || 0),
       status: rt.ticket.status,
-      discountPercentage: rt.ticket.discountPercentage,
       seatSection: rt.ticket.showseats[0]?.seatSection ?? null,
-    })),
-  }));
+    }));
 
-  return grouped;
+    const commissionFee = Number(log.showschedules.commissionFee || 0);
+    const totalCommission = tickets.length * commissionFee;
+
+    const totalRemittance = tickets.reduce((acc, t) => {
+      const discount = t.discountPercentage ? (t.ticketPrice * t.discountPercentage) / 100 : 0;
+      return acc + (t.ticketPrice - discount - commissionFee);
+    }, 0);
+
+    return {
+      seatingType: log.showschedules.seatingType,
+      showCover: log.showschedules.shows.showCover,
+      showTitle: log.showschedules.shows.title,
+      showDate: log.showschedules.datetime,
+      remittanceId: log.actionLogId,
+      scheduleId: log.scheduleId,
+      actionType: log.actionType,
+      receivedBy: log.users_ticketactionlog_actionByTousers.firstName + " " + log.users_ticketactionlog_actionByTousers.lastName,
+      dateRemitted: log.actionDate,
+      remarks: log.remarks,
+      tickets,
+      totalCommission,
+      totalRemittance,
+    };
+  });
+
+  return mapped;
 };
 
 export const getDistributorAllocationHistory = async ({ distributorId, scheduleId }) => {
+  const whereClause = {
+    distributorId,
+    actionType: { in: ["allocate", "unallocate"] },
+    ...(scheduleId && { scheduleId }),
+  };
+
   const allocationHistory = await prisma.ticketactionlog.findMany({
-    where: { distributorId, scheduleId, actionType: { in: ["allocate", "unallocate"] } },
+    where: whereClause,
     select: {
+      scheduleId: true,
       actionType: true,
       actionLogId: true,
+      showschedules: {
+        select: {
+          datetime: true,
+          shows: {
+            select: {
+              showCover: true,
+              title: true,
+            },
+          },
+        },
+      },
       users_ticketactionlog_actionByTousers: {
         select: {
           firstName: true,
@@ -162,6 +220,10 @@ export const getDistributorAllocationHistory = async ({ distributorId, scheduleI
   });
 
   const grouped = allocationHistory.map((log) => ({
+    showCover: log.showschedules.shows.showCover,
+    showTitle: log.showschedules.shows.title,
+    showDate: log.showschedules.datetime,
+    scheduleId: log.scheduleId,
     actionType: log.actionType,
     remarks: log.remarks,
     allocationLogId: log.actionLogId,
@@ -278,6 +340,22 @@ export const getDistributorShowsAndTicketsAllocated = async ({ distributorId }) 
 
 export const markTicketAsSold = async ({ distributorId, scheduleId, controlNumbers, customerName, email, isIncluded }) => {
   await prisma.$transaction(async (tx) => {
+    // Update ticket status
+    const updatedTickets = await tx.ticket.findMany({
+      where: {
+        distributorId,
+        scheduleId,
+        controlNumber: { in: controlNumbers },
+      },
+      select: {
+        ticketId: true,
+      },
+    });
+
+    if (updatedTickets.length === 0) {
+      throw new AppError("No tickets found to mark as sold");
+    }
+
     const updateData = {
       status: "sold",
     };
@@ -289,28 +367,45 @@ export const markTicketAsSold = async ({ distributorId, scheduleId, controlNumbe
 
     await tx.ticket.updateMany({
       where: {
-        distributorId,
-        scheduleId,
-        controlNumber: {
-          in: controlNumbers,
-        },
+        ticketId: { in: updatedTickets.map((t) => t.ticketId) },
       },
       data: updateData,
     });
+
+    // Update seat status for controlled seating
+    await tx.showseats.updateMany({
+      where: {
+        scheduleId,
+        ticketId: { in: updatedTickets.map((t) => t.ticketId) },
+      },
+      data: {
+        status: "sold", // mark seat as sold
+      },
+    });
+
+    // Optional: Send notification to trainer here
   });
-  //should also send notification to the trainer
 };
 
 export const markTicketAsUnSold = async ({ distributorId, scheduleId, controlNumbers }) => {
   await prisma.$transaction(async (tx) => {
-    tx.ticket.updateMany({
+    // Find tickets first
+    const tickets = await tx.ticket.findMany({
       where: {
         distributorId,
         scheduleId,
-        controlNumber: {
-          in: controlNumbers,
-        },
+        controlNumber: { in: controlNumbers },
       },
+      select: { ticketId: true },
+    });
+
+    if (tickets.length === 0) {
+      throw new Error("No tickets found to mark as unsold");
+    }
+
+    // Update ticket status
+    await tx.ticket.updateMany({
+      where: { ticketId: { in: tickets.map((t) => t.ticketId) } },
       data: {
         status: "allocated",
         customerEmail: null,
@@ -318,6 +413,17 @@ export const markTicketAsUnSold = async ({ distributorId, scheduleId, controlNum
       },
     });
 
-    //should also send notification to the trainer
+    // Update seat status for controlled seating
+    await tx.showseats.updateMany({
+      where: {
+        scheduleId,
+        ticketId: { in: tickets.map((t) => t.ticketId) },
+      },
+      data: {
+        status: "reserved", // mark seat as reserved
+      },
+    });
+
+    // Optional: send notification to the trainer
   });
 };

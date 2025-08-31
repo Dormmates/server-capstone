@@ -4,6 +4,8 @@ import {
   allocateTicketController,
   closeScheduleController,
   deleteScheduleController,
+  getAllDistributorAllocationHistoryController,
+  getAllDistributorRemittanceHistoryController,
   getDistributorAllocationHistoryController,
   getDistributorRemittanceHistoryController,
   getDistributorTicketsSummaryController,
@@ -40,7 +42,9 @@ router.get("/seatmap/:scheduleId", getScheduleSeatMapController);
 
 router.get("/:scheduleId/ticketAllocated/:distributorId", getTicketsAllocatedOfDistributorController);
 router.get("/:scheduleId/allocationHistory/:distributorId", getDistributorAllocationHistoryController);
+router.get("/allocationHistory/:distributorId", getAllDistributorAllocationHistoryController);
 router.get("/:scheduleId/remittanceHistory/:distributorId", getDistributorRemittanceHistoryController);
+router.get("/remittanceHistory/:distributorId", getAllDistributorRemittanceHistoryController);
 router.get("/:scheduleId/ticketSummary/:distributorId", getDistributorTicketsSummaryController);
 
 router.post("/", verifyAuth, requireRole("head", "trainer"), addShowScheduleController);
