@@ -267,9 +267,18 @@ export const getScheduleTickets = async (scheduleId) => {
     orderBy: {
       controlNumber: "asc",
     },
+    include: {
+      showseats: {
+        select: {
+          seatNumber: true,
+        },
+        take: 1,
+      },
+    },
   });
   const mapped = tickets.map((ticket) => ({
     ...ticket,
+    seatNumber: ticket.showseats[0]?.seatNumber ?? null,
     isRemitted: ticket.status === "lost" || ticket.status === "sold" || ticket.status === "remitted",
   }));
 

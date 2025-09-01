@@ -45,3 +45,13 @@ export const getUserInformationController = asyncHandler(async (req, res, next) 
 
   res.status(HttpStatusCodes.OK).json({ ...user });
 });
+
+export const logoutController = asyncHandler(async (req, res) => {
+  res.clearCookie("authToken", {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+  });
+
+  res.status(200).json({ message: "Logged out successfully" });
+});
