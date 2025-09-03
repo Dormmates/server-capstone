@@ -79,7 +79,6 @@ export const getShowsController = asyncHandler(async (req, res) => {
   const showType = req.query.showType;
 
   const { shows } = await getShows({ departmentId, showType });
-
   res.json(shows);
 });
 

@@ -54,7 +54,7 @@ export const createShow = async ({ showTitle, coverImage, description, departmen
   return newShow;
 };
 
-export const updateShow = async ({ showId, showTitle, coverImage, description, department, genre = [], createdBy, showType }) => {
+export const updateShow = async ({ showId, showTitle, coverImage, description, department, genre = [], showType }) => {
   return await prisma.$transaction(async (tx) => {
     await tx.shows.update({
       where: { showId },
@@ -106,13 +106,14 @@ export const updateShow = async ({ showId, showTitle, coverImage, description, d
   });
 };
 
-export const getShows = async ({ departmentId, showType }) => {
+export const getShows = async ({ departmentId = null, showType = null }) => {
   const where = {
     ...(departmentId && {
       OR: [{ departmentId }, { departmentId: null }],
     }),
-  };
 
+    ...(showType ? { showType } : { showType: { in: ["majorConcert", "showCase"] } }),
+  };
   const shows = await prisma.shows.findMany({
     where,
     include: {
