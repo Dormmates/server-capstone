@@ -1,12 +1,15 @@
 import { asyncHandler } from "../middleware/asyncHandler.middleware.js";
 import { AppError, HttpStatusCodes } from "../middleware/errorHandler.middleware.js";
 import {
+  archiveUser,
   createDistributorAccount,
+  deleteUserSafely,
   editAccount,
   editDistributorAccount,
   getDistributors,
   getDistributorTypes,
   getTrainers,
+  unArchiveUser,
 } from "../services/accounts.service.js";
 import { createAccount } from "../services/auth.service.js";
 import { assignDepartmentTrainer, removeDepartmentTrainer, removeDepartmentTrainerByTrainerId } from "../services/department.service.js";
@@ -176,4 +179,35 @@ export const getDistributorsController = asyncHandler(async (req, res, next) => 
   res.json(data);
 });
 
-export const archiveAccountController = asyncHandler(async (req, res, next) => {});
+export const deleteUserController = asyncHandler(async (req, res, next) => {
+  const { userId } = req.body;
+
+  if (!userId) {
+    throw new AppError("Missing Post Fields");
+  }
+
+  await deleteUserSafely(userId);
+  res.json({ message: "User Deleted" });
+});
+
+export const archiveAccountController = asyncHandler(async (req, res, next) => {
+  const { userId } = req.body;
+
+  if (!userId) {
+    throw new AppError("Missing Post Fields");
+  }
+
+  await archiveUser(userId);
+  res.json({ message: "User Archived" });
+});
+
+export const unArchiveAccountController = asyncHandler(async (req, res, next) => {
+  const { userId } = req.body;
+
+  if (!userId) {
+    throw new AppError("Missing Post Fields");
+  }
+
+  await unArchiveUser(userId);
+  res.json({ message: "User UnArchived" });
+});

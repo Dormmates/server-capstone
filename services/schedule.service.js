@@ -11,6 +11,25 @@ export const addShowSchedule = async ({
   commissionFee = 0,
   tx = prisma,
 }) => {
+  const now = new Date();
+  const nowPH = new Date(now.getTime() + (8 * 60 - now.getTimezoneOffset()) * 60000);
+
+  const invalidDates = dates
+    .filter(({ datetime }) => {
+      const dt = new Date(datetime);
+      const dtPH = new Date(dt.getTime() + (8 * 60 - dt.getTimezoneOffset()) * 60000);
+      return dtPH < nowPH;
+    })
+    .map(({ datetime }) => {
+      const dt = new Date(datetime);
+      const dtPH = new Date(dt.getTime() + (8 * 60 - dt.getTimezoneOffset()) * 60000);
+      return dtPH.toISOString().replace("T", " ").slice(0, 16);
+    });
+
+  if (invalidDates.length > 0) {
+    throw new AppError(`Cannot add schedules in the past (PH time): ${invalidDates.join(", ")}`, HttpStatusCodes.BadRequest);
+  }
+
   const schedules = dates.map(({ datetime }) => ({
     scheduleId: crypto.randomUUID(),
     showId,
@@ -32,7 +51,11 @@ export const addShowSchedule = async ({
   });
 
   if (conflicts.length > 0) {
-    const conflictDetails = conflicts.map((s) => s.datetime.toISOString().replace("T", " ").slice(0, 16));
+    const conflictDetails = conflicts.map((s) => {
+      const dt = new Date(s.datetime);
+      const dtPH = new Date(dt.getTime() + (8 * 60 - dt.getTimezoneOffset()) * 60000);
+      return dtPH.toISOString().replace("T", " ").slice(0, 16);
+    });
     throw new AppError(`Conflicting schedules already exist for: ${conflictDetails.join(", ")}`, HttpStatusCodes.Conflict);
   }
 
@@ -105,6 +128,18 @@ export const reschedule = async ({ scheduleId, newDateTime }) => {
     throw new AppError("Cannot reschedule a closed schedule", HttpStatusCodes.BadRequest);
   }
 
+  const now = new Date();
+  const nowPH = new Date(now.getTime() + (8 * 60 - now.getTimezoneOffset()) * 60000);
+
+  const newDatePH = new Date(new Date(newDateTime).getTime() + (8 * 60 - new Date(newDateTime).getTimezoneOffset()) * 60000);
+
+  if (newDatePH < nowPH) {
+    throw new AppError(
+      `Cannot reschedule to a past date/time (PH time): ${newDatePH.toISOString().replace("T", " ").slice(0, 16)}`,
+      HttpStatusCodes.BadRequest
+    );
+  }
+
   const conflicts = await prisma.showschedules.findMany({
     where: {
       showId: schedule.showId,
@@ -114,7 +149,7 @@ export const reschedule = async ({ scheduleId, newDateTime }) => {
   });
 
   if (conflicts.length > 0) {
-    const conflictDetails = conflicts.map((s) => s.datetime.toISOString().replace("T", " ").slice(0, 16));
+    const conflictDetails = conflicts.map((s) => new Date(s.datetime).toISOString().replace("T", " ").slice(0, 16));
     throw new AppError(`Conflicting schedules already exist for: ${conflictDetails.join(", ")}`, HttpStatusCodes.Conflict);
   }
 
@@ -840,6 +875,62 @@ export const remitTicketSales = async ({
                 ticketId: ticketIdMap[cn],
               })),
             ],
+          },
+        },
+      },
+    });
+  });
+};
+
+export const unremitTicketSales = async ({ remittedTickets, scheduleId, distributorId, actionBy, remarks = null }) => {
+  const schedule = await prisma.showschedules.findUnique({
+    where: { scheduleId },
+  });
+
+  if (!schedule) {
+    throw new AppError("Provided Schedule does not exist");
+  }
+
+  const distributor = await prisma.users.findUnique({
+    where: { userId: distributorId },
+  });
+
+  if (!distributor) {
+    throw new AppError("Distributor not found");
+  }
+
+  const tickets = await prisma.ticket.findMany({
+    where: { scheduleId, controlNumber: { in: remittedTickets } },
+    select: { ticketId: true, controlNumber: true },
+  });
+
+  const ticketIdMap = Object.fromEntries(tickets.map((t) => [t.controlNumber, t.ticketId]));
+
+  const actionLogId = crypto.randomUUID();
+
+  await prisma.$transaction(async (tx) => {
+    await tx.ticket.updateMany({
+      where: {
+        scheduleId,
+        controlNumber: { in: remittedTickets },
+        status: "remitted",
+      },
+      data: { status: "allocated" },
+    });
+
+    await tx.ticketactionlog.create({
+      data: {
+        actionLogId,
+        actionBy,
+        distributorId,
+        scheduleId,
+        remarks,
+        actionType: "unremit",
+        logtickets: {
+          createMany: {
+            data: remittedTickets.map((cn) => ({
+              ticketId: ticketIdMap[cn],
+            })),
           },
         },
       },

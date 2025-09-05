@@ -191,3 +191,55 @@ export const editDistributorAccount = async ({ userId, firstName, lastName, emai
     ...distributor[0],
   };
 };
+
+export const deleteUsersSafely = async (userIds) => {
+  const deletedUsers = [];
+  const skippedUsers = [];
+
+  for (const userId of userIds) {
+    const hasReferences =
+      (await prisma.department.count({ where: { trainerId: userId } })) > 0 ||
+      (await prisma.distributor.count({ where: { userId } })) > 0 ||
+      (await prisma.notifications.count({ where: { OR: [{ senderId: userId }, { receiverId: userId }] } })) > 0 ||
+      (await prisma.shows.count({ where: { createdBy: userId } })) > 0 ||
+      (await prisma.ticket.count({ where: { distributorId: userId } })) > 0 ||
+      (await prisma.ticketactionlog.count({ where: { OR: [{ actionBy: userId }, { distributorId: userId }] } })) > 0;
+
+    if (hasReferences) {
+      skippedUsers.push(userId);
+    } else {
+      await prisma.users.delete({ where: { userId } });
+      deletedUsers.push(userId);
+    }
+  }
+
+  return { deletedUsers, skippedUsers };
+};
+
+export const deleteUserSafely = async (userId) => {
+  const hasReferences =
+    (await prisma.department.count({ where: { trainerId: userId } })) > 0 ||
+    (await prisma.notifications.count({
+      where: { OR: [{ senderId: userId }, { receiverId: userId }] },
+    })) > 0 ||
+    (await prisma.shows.count({ where: { createdBy: userId } })) > 0 ||
+    (await prisma.ticket.count({ where: { distributorId: userId } })) > 0 ||
+    (await prisma.ticketactionlog.count({
+      where: { OR: [{ actionBy: userId }, { distributorId: userId }] },
+    })) > 0;
+
+  if (hasReferences) {
+    throw new AppError("User cannot be deleted, user contains some data");
+  }
+
+  await prisma.users.delete({ where: { userId } });
+  return { deleted: true };
+};
+
+export const archiveUser = async (userId) => {
+  await prisma.users.update({ where: { userId }, data: { isArchived: true } });
+};
+
+export const unArchiveUser = async (userId) => {
+  await prisma.users.update({ where: { userId }, data: { isArchived: false } });
+};

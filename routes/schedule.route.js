@@ -22,6 +22,7 @@ import {
   remitTicketSalesController,
   rescheduleController,
   unAllocateTicketController,
+  unRemitTicketSalesController,
 } from "../controller/schedule.controller.js";
 import { requireRole, verifyAuth } from "../middleware/auth.middleware.js";
 
@@ -52,5 +53,6 @@ router.post("/allocate/controlNumber", verifyAuth, requireRole("head", "trainer"
 router.post("/unallocate/controlNumber", verifyAuth, requireRole("head", "trainer"), unAllocateTicketController);
 
 router.post("/remit", verifyAuth, requireRole("head", "trainer"), remitTicketSalesController);
+router.post("/unremit", verifyAuth, requireRole("head", "trainer"), unRemitTicketSalesController);
 router.post("/markSold", verifyAuth, requireRole("distributor"), markTicketAsSoldController);
 router.post("/markUnsold", verifyAuth, requireRole("distributor"), markTicketAsUnSoldController);

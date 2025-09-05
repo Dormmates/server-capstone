@@ -23,6 +23,7 @@ import {
   remitTicketSales,
   reschedule,
   unallocateTicket,
+  unremitTicketSales,
 } from "../services/schedule.service.js";
 import { doesShowExist } from "../services/show.service.js";
 import { convertDates } from "../utils/convert.utils.js";
@@ -307,4 +308,15 @@ export const remitTicketSalesController = asyncHandler(async (req, res, next) =>
 
   await remitTicketSales({ sold, lost, discounted, discountPercentage, scheduleId, distributorId, actionBy, remarks });
   res.json({ message: "Remitted" });
+});
+
+export const unRemitTicketSalesController = asyncHandler(async (req, res, next) => {
+  const { remittedTickets, scheduleId, distributorId, actionBy, remarks } = req.body;
+
+  if (!remittedTickets || !scheduleId || !distributorId || !actionBy) {
+    throw new AppError("Missing Post Fields", HttpStatusCodes.BadRequest);
+  }
+
+  await unremitTicketSales({ remittedTickets, scheduleId, distributorId, actionBy, remarks });
+  res.json({ message: "Unremitted" });
 });
