@@ -24,6 +24,11 @@ router.post("/delete", verifyAuth, requireRole("head", "trainer"), deleteShowCon
 router.get("/:id", getShowController);
 router.get("/", getShowsController);
 router.get("/archived", getArchivedShowsController);
-router.get("/distributors/:distributorId/tickets", verifyAuth, requireRole("distributor"), getDistributorShowsAndTicketsAllocatedController);
+router.get(
+  "/distributors/:distributorId/tickets",
+  verifyAuth,
+  requireRole("distributor", "trainer", "head"),
+  getDistributorShowsAndTicketsAllocatedController
+);
 
 router.patch("/", verifyAuth, requireRole("head", "trainer"), upload.single("image"), updateWithReplace, updateShowController);

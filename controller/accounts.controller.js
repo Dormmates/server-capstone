@@ -11,7 +11,7 @@ import {
   getTrainers,
   unArchiveUser,
 } from "../services/accounts.service.js";
-import { createAccount } from "../services/auth.service.js";
+import { createAccount, getUserById } from "../services/auth.service.js";
 import { assignDepartmentTrainer, removeDepartmentTrainer, removeDepartmentTrainerByTrainerId } from "../services/department.service.js";
 import prisma from "../utils/primsa.connection.js";
 import { validateEmail } from "../utils/validators.js";
@@ -210,4 +210,17 @@ export const unArchiveAccountController = asyncHandler(async (req, res, next) =>
 
   await unArchiveUser(userId);
   res.json({ message: "User UnArchived" });
+});
+
+export const getDistributorInformationController = asyncHandler(async (req, res, next) => {
+  const { id } = req.params;
+
+  if (!id) {
+    throw new AppError("Missing Post Fields");
+  }
+
+  console.log(id);
+
+  const user = await getUserById(id);
+  res.json(user);
 });

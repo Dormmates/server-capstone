@@ -6,6 +6,7 @@ import {
   createTrainerAccountController,
   deleteUserController,
   editTrainerAccountController,
+  getDistributorInformationController,
   getDistributorsController,
   getDistributorTypesController,
   getTrainersController,
@@ -17,6 +18,7 @@ export const router = express.Router();
 
 router.get("/trainers", verifyAuth, getTrainersController);
 router.get("/distributors", verifyAuth, getDistributorsController);
+router.get("/distributor/:id", verifyAuth, getDistributorInformationController);
 router.get("/distributorTypes", getDistributorTypesController);
 
 router.post("/trainer", verifyAuth, requireRole("head"), createTrainerAccountController);

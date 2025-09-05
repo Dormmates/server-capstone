@@ -24,11 +24,13 @@ export const createShowController = asyncHandler(async (req, res, next) => {
 });
 
 export const updateShowController = asyncHandler(async (req, res, next) => {
-  const { showId, showTitle, description, department, genre, createdBy, showType } = req.body;
+  const { showId, showTitle, description, department, genre, showType } = req.body;
+
+  console.log(req.body);
 
   const { imageUrl } = req;
 
-  if (!showTitle || !description || !genre || !createdBy || !showType) {
+  if (!showTitle || !description || !genre || !showType) {
     throw new AppError("Missing Post Fields", HttpStatusCodes.BadRequest);
   }
 
@@ -44,7 +46,6 @@ export const updateShowController = asyncHandler(async (req, res, next) => {
     description,
     department,
     genre: cleanedGenres,
-    createdBy,
     showType,
   });
 

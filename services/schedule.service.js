@@ -432,7 +432,6 @@ export const allocateTicket = async ({ scheduleId, distributorId, allocatedBy, c
     const distributor = await prisma.users.findFirst({
       where: {
         userId: distributorId,
-        role: "distributor",
         isArchived: false,
         isLocked: false,
       },
@@ -606,7 +605,6 @@ export const unallocateTicket = async ({ scheduleId, distributorId, unallocatedB
     const distributor = await prisma.users.findFirst({
       where: {
         userId: distributorId,
-        role: "distributor",
         isArchived: false,
         isLocked: false,
       },

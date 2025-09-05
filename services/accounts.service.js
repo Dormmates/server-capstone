@@ -1,7 +1,7 @@
 import { AppError, HttpStatusCodes } from "../middleware/errorHandler.middleware.js";
 import { hashPassword } from "../utils/password.utils.js";
 import prisma from "../utils/primsa.connection.js";
-import { getUserByEmail } from "./auth.service.js";
+import { getUserByEmail, getUserById } from "./auth.service.js";
 
 export const getDistributorTypes = async () => {
   return await prisma.distributortypes.findMany();
