@@ -30,7 +30,7 @@ import { convertDates } from "../utils/convert.utils.js";
 import prisma from "../utils/primsa.connection.js";
 
 export const getShowSchedulesController = asyncHandler(async (req, res) => {
-  const { showId } = req.query;
+  const { showId, excludeClosed, excludeReservationOff } = req.query;
 
   const exists = doesShowExist(showId);
 
@@ -38,7 +38,7 @@ export const getShowSchedulesController = asyncHandler(async (req, res) => {
     throw new AppError("Show Not Found", HttpStatusCodes.NotFound);
   }
 
-  const schedules = await getShowSchedules(showId);
+  const schedules = await getShowSchedules({ showId, excludeReservationOff, excludeClosed });
 
   res.json(schedules);
 });

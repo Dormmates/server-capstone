@@ -106,13 +106,21 @@ export const updateShow = async ({ showId, showTitle, coverImage, description, d
   });
 };
 
-export const getShows = async ({ departmentId = null, showType = null }) => {
+export const getShows = async ({ departmentId = null, showType = null, includeMajorProduction = false, excludeArchived = false }) => {
   const where = {
     ...(departmentId && {
       OR: [{ departmentId }, { departmentId: null }],
     }),
 
-    ...(showType ? { showType } : { showType: { in: ["majorConcert", "showCase"] } }),
+    ...(showType
+      ? { showType }
+      : {
+          showType: {
+            in: includeMajorProduction ? ["majorConcert", "showCase", "majorProduction"] : ["majorConcert", "showCase"],
+          },
+        }),
+
+    ...(excludeArchived && { isArchived: false }),
   };
   const shows = await prisma.shows.findMany({
     where,

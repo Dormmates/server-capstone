@@ -222,9 +222,13 @@ export const generateScheduleTicketsAndSeats = async ({ tx, scheduleId, seatPric
   return tickets;
 };
 
-export const getShowSchedules = async (showId) => {
+export const getShowSchedules = async ({ showId, excludeClosed = false, excludeReservationOff = false }) => {
   return await prisma.showschedules.findMany({
-    where: { showId },
+    where: {
+      showId,
+      ...(excludeClosed && { isOpen: true }),
+      ...(excludeReservationOff && { closedReservation: false }),
+    },
     orderBy: { datetime: "asc" },
   });
 };
