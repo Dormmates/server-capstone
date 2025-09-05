@@ -1,6 +1,6 @@
 import { asyncHandler } from "../middleware/asyncHandler.middleware.js";
 import { AppError, HttpStatusCodes } from "../middleware/errorHandler.middleware.js";
-import { login, getUser } from "../services/auth.service.js";
+import { login, getUserById } from "../services/auth.service.js";
 import { generateToken } from "../utils/token.utils.js";
 import { validateEmail } from "../utils/validators.js";
 
@@ -24,14 +24,13 @@ export const loginController = asyncHandler(async (req, res) => {
     throw new AppError("Account is locked or archived", HttpStatusCodes.Forbidden);
   }
 
-  if (
-    ((user.role === "head" || user.role === "trainer") && expectedRole !== "cca") ||
-    (user.role === "distributor" && expectedRole !== "distributor")
-  ) {
+  const hasRole = (rolesToCheck) => user.roles.some((r) => rolesToCheck.includes(r));
+
+  if ((hasRole(["head", "trainer"]) && expectedRole !== "cca") || (hasRole(["distributor"]) && expectedRole !== "distributor")) {
     throw new AppError("Unauthorized Account Role", HttpStatusCodes.Forbidden);
   }
 
-  res.cookie("authToken", generateToken({ userId: user.userId, userRole: user.role }), {
+  res.cookie("authToken", generateToken({ userId: user.userId, userRole: user.roles }), {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
@@ -41,9 +40,8 @@ export const loginController = asyncHandler(async (req, res) => {
 });
 
 export const getUserInformationController = asyncHandler(async (req, res, next) => {
-  const user = await getUser({ userId: req.user.userId });
-
-  res.status(HttpStatusCodes.OK).json({ ...user });
+  const user = await getUserById(req.user.userId);
+  res.status(HttpStatusCodes.OK).json(user);
 });
 
 export const logoutController = asyncHandler(async (req, res) => {

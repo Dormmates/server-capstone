@@ -24,7 +24,7 @@ model distributor {
   distributorTypeId Int
   departmentId      String?          @db.VarChar(36)
   contactNumber     String           @db.VarChar(20)
-  users             users            @relation(fields: [userId], references: [userId], map: "distributor_ibfk_1")
+  users             users            @relation(fields: [userId], references: [userId], onDelete: Cascade, map: "distributor_ibfk_1")
   distributortypes  distributortypes @relation(fields: [distributorTypeId], references: [id], onDelete: Cascade, map: "distributor_ibfk_2")
   department        department?      @relation(fields: [departmentId], references: [departmentId], onDelete: Cascade, map: "distributor_ibfk_3")
 
@@ -178,7 +178,6 @@ model users {
   createdAt                                            DateTime          @default(now()) @db.Timestamp(0)
   isArchived                                           Boolean           @default(false)
   isLocked                                             Boolean           @default(false)
-  role                                                 users_role
   department                                           department?
   distributor                                          distributor?
   notifications_notifications_senderIdTousers          notifications[]   @relation("notifications_senderIdTousers")
@@ -187,6 +186,7 @@ model users {
   ticket                                               ticket[]
   ticketactionlog_ticketactionlog_actionByTousers      ticketactionlog[] @relation("ticketactionlog_actionByTousers")
   ticketactionlog_ticketactionlog_distributorIdTousers ticketactionlog[] @relation("ticketactionlog_distributorIdTousers")
+  userroles                                            userroles[]
 }
 
 model reservedtickets {
@@ -229,6 +229,21 @@ model ticketactionlog {
   @@index([scheduleId], map: "schedule_fk1_idx")
 }
 
+model roles {
+  role      String      @id @unique(map: "role_UNIQUE") @db.VarChar(36)
+  userroles userroles[]
+}
+
+model userroles {
+  userId String @db.VarChar(36)
+  role   String @db.VarChar(36)
+  users  users  @relation(fields: [userId], references: [userId], onDelete: Cascade, map: "fk_1")
+  roles  roles  @relation(fields: [role], references: [role], onDelete: Cascade, map: "fk_2")
+
+  @@id([userId, role])
+  @@index([role], map: "fk_2_idx")
+}
+
 enum notifications_type {
   distributorToCCA
   reservationReminder
@@ -260,12 +275,6 @@ enum ticket_status {
 enum reservations_status {
   pending
   verified
-}
-
-enum users_role {
-  head
-  trainer
-  distributor
 }
 
 enum showschedules_seatingType {

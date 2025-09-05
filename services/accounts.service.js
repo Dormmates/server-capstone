@@ -1,15 +1,19 @@
 import { AppError, HttpStatusCodes } from "../middleware/errorHandler.middleware.js";
 import { hashPassword } from "../utils/password.utils.js";
 import prisma from "../utils/primsa.connection.js";
-import { checkEmailExistence } from "./auth.service.js";
+import { getUserByEmail } from "./auth.service.js";
 
 export const getDistributorTypes = async () => {
   return await prisma.distributortypes.findMany();
 };
 
 export const getTrainers = async () => {
-  return await prisma.users.findMany({
-    where: { role: "trainer" },
+  const trainers = await prisma.users.findMany({
+    where: {
+      userroles: {
+        some: { role: "trainer" },
+      },
+    },
     include: {
       department: {
         select: {
@@ -17,14 +21,27 @@ export const getTrainers = async () => {
           departmentId: true,
         },
       },
+      userroles: {
+        select: {
+          role: true,
+        },
+      },
     },
   });
+
+  return trainers.map((user) => ({
+    ...user,
+    roles: user.userroles.map((ur) => ur.role),
+  }));
 };
 
 export const getDistributors = async (departmentId) => {
-  return await prisma.users.findMany({
+  const distributors = await prisma.users.findMany({
     where: {
-      role: "distributor",
+      userroles: {
+        some: { role: "distributor" },
+        every: { role: "distributor" },
+      },
       ...(departmentId && {
         distributor: {
           OR: [{ departmentId }, { departmentId: null }],
@@ -50,12 +67,23 @@ export const getDistributors = async (departmentId) => {
           contactNumber: true,
         },
       },
+      userroles: {
+        select: {
+          role: true,
+        },
+      },
     },
   });
+
+  // Map userroles to roles array
+  return distributors.map((user) => ({
+    ...user,
+    roles: user.userroles.map((ur) => ur.role),
+  }));
 };
 
 export const editAccount = async ({ userId, firstName, lastName, email }) => {
-  const user = await checkEmailExistence(email);
+  const user = await getUserByEmail(email);
 
   if (user && user.userId !== userId) {
     throw new AppError("Email already used", HttpStatusCodes.Conflict);
@@ -74,7 +102,7 @@ export const editAccount = async ({ userId, firstName, lastName, email }) => {
 };
 
 export const createDistributorAccount = async ({ firstName, lastName, email, password, distributorType, contactNumber, departmentId }) => {
-  const existingUser = await checkEmailExistence(email);
+  const existingUser = await getUserByEmail(email);
 
   if (existingUser) {
     throw new AppError("Email already used", HttpStatusCodes.Conflict);
@@ -98,7 +126,6 @@ export const createDistributorAccount = async ({ firstName, lastName, email, pas
 
     distributorData.departmentId = departmentId;
   }
-
   const result = await prisma.users.create({
     data: {
       userId: crypto.randomUUID(),
@@ -106,13 +133,13 @@ export const createDistributorAccount = async ({ firstName, lastName, email, pas
       lastName,
       email,
       password: await hashPassword(password),
-      role: "distributor",
+
       distributor: {
         create: distributorData,
       },
-    },
-    include: {
-      distributor: true,
+      userroles: {
+        create: { role: "distributor" },
+      },
     },
   });
 

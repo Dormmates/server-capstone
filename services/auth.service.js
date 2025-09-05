@@ -2,63 +2,12 @@ import { AppError, HttpStatusCodes } from "../middleware/errorHandler.middleware
 import { hashPassword, verifyPassword } from "../utils/password.utils.js";
 import prisma from "../utils/primsa.connection.js";
 
-/**
- * Checks if email is on the database
- */
-export const checkEmailExistence = async (email) => {
-  return await prisma.users.findUnique({
+export const getUserByEmail = async (email) => {
+  const user = await prisma.users.findUnique({
     where: { email },
-    include: {
-      distributor: {
-        select: {
-          contactNumber: true,
-          distributortypes: {
-            select: {
-              id: true,
-              name: true,
-            },
-          },
-          department: {
-            select: {
-              departmentId: true,
-              name: true,
-            },
-          },
-        },
-      },
-      department: {
-        select: {
-          departmentId: true,
-          name: true,
-        },
-      },
-    },
-  });
-};
-
-export const login = async ({ email, password }) => {
-  const userData = await checkEmailExistence(email);
-
-  if (!userData) {
-    throw new AppError("Wrong email or password", HttpStatusCodes.Forbidden);
-  }
-
-  const isPasswordValid = await verifyPassword(password, userData.password);
-  if (!isPasswordValid) {
-    throw new AppError("Wrong email or password", HttpStatusCodes.Forbidden);
-  }
-
-  const { password: _, isArchived, isLocked, createdAt, ...safeUserData } = userData;
-
-  return safeUserData;
-};
-
-export const getUser = async ({ userId }) => {
-  return await prisma.users.findFirst({
-    where: { userId },
     select: {
+      password: true,
       userId: true,
-      role: true,
       email: true,
       firstName: true,
       lastName: true,
@@ -85,12 +34,83 @@ export const getUser = async ({ userId }) => {
           name: true,
         },
       },
+      userroles: {
+        select: {
+          role: true,
+        },
+      },
     },
   });
+
+  if (!user) return null;
+
+  return {
+    ...user,
+    roles: user.userroles.map((r) => r.role),
+  };
+};
+
+export const getUserById = async (userId) => {
+  const user = await prisma.users.findFirst({
+    where: { userId },
+    select: {
+      userId: true,
+      email: true,
+      firstName: true,
+      lastName: true,
+      distributor: {
+        select: {
+          contactNumber: true,
+          distributortypes: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+          department: {
+            select: {
+              departmentId: true,
+              name: true,
+            },
+          },
+        },
+      },
+      department: {
+        select: {
+          departmentId: true,
+          name: true,
+        },
+      },
+      userroles: {
+        select: {
+          role: true,
+        },
+      },
+    },
+  });
+
+  return { ...user, roles: user.userroles.map((r) => r.role) };
+};
+
+export const login = async ({ email, password }) => {
+  const userData = await getUserByEmail(email);
+
+  if (!userData) {
+    throw new AppError("Wrong email or password", HttpStatusCodes.Forbidden);
+  }
+
+  const isPasswordValid = await verifyPassword(password, userData.password);
+  if (!isPasswordValid) {
+    throw new AppError("Wrong email or password", HttpStatusCodes.Forbidden);
+  }
+
+  const { password: _, isLocked, createdAt, ...safeUserData } = userData;
+
+  return safeUserData;
 };
 
 export const createAccount = async ({ firstName, lastName, userType, email, password }) => {
-  const user = await checkEmailExistence(email);
+  const user = await getUserByEmail(email);
 
   if (user) {
     throw new AppError("Email already used", HttpStatusCodes.Conflict);
@@ -103,7 +123,11 @@ export const createAccount = async ({ firstName, lastName, userType, email, pass
       lastName,
       email,
       password: await hashPassword(password),
-      role: userType,
+      userroles: {
+        create: {
+          role: userType,
+        },
+      },
     },
   });
 
