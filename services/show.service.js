@@ -40,6 +40,12 @@ export const createShow = async ({ showTitle, coverImage, description, departmen
       createdAt: true,
       isArchived: true,
       showCover: true,
+      users: {
+        select: {
+          firstName: true,
+          lastName: true,
+        },
+      },
       showgenre: {
         select: {
           genre_showgenre_genreTogenre: {
@@ -172,8 +178,8 @@ export const getShow = async ({ id }) => {
 };
 
 export const archiveShow = async (showId) => {
-  await prisma.$transaction(async (tx) => {
-    await tx.shows.update({
+  const archivedShow = await prisma.$transaction(async (tx) => {
+    const show = await tx.shows.update({
       where: { showId },
       data: { isArchived: true },
     });
@@ -181,7 +187,11 @@ export const archiveShow = async (showId) => {
     await tx.showschedules.deleteMany({
       where: { showId },
     });
+
+    return show;
   });
+
+  return archivedShow;
 };
 
 export const unArchiveShow = async (showId) => {

@@ -1,7 +1,12 @@
 import { asyncHandler } from "../middleware/asyncHandler.middleware.js";
 import { AppError, HttpStatusCodes } from "../middleware/errorHandler.middleware.js";
+import { getUserRoles } from "../services/accounts.service.js";
+import { getUserById } from "../services/auth.service.js";
+import { getDepartmentTrainer } from "../services/department.service.js";
 import { getDistributorShowsAndTicketsAllocated } from "../services/distributorTickets.service.js";
+import { createNotification, getCcaHeadIds, getTrainerIds } from "../services/notification.service.js";
 import { archiveShow, createShow, deleteShow, doesShowExist, getShow, getShows, unArchiveShow, updateShow } from "../services/show.service.js";
+import { sendShowNotification, ShowNotificationAction } from "../utils/sendNotification.js";
 
 export const createShowController = asyncHandler(async (req, res, next) => {
   const { showTitle, description, department, genre, createdBy, showType } = req.body;
@@ -19,6 +24,16 @@ export const createShowController = asyncHandler(async (req, res, next) => {
 
   const newShow = await createShow({ showTitle, coverImage: imageUrl, description, department, genre: cleanedGenres, createdBy, showType });
   const genreNames = newShow?.showgenre.map((g) => g.genre_showgenre_genreTogenre.name);
+
+  sendShowNotification({
+    actionBy: createdBy,
+    showId: newShow.showId,
+    showTitle,
+    showType,
+    department,
+    action: ShowNotificationAction.CREATE,
+    name: newShow.users.firstName + " " + newShow.users.lastName,
+  });
 
   res.status(HttpStatusCodes.OK).json({ ...newShow, genreNames });
 });
@@ -99,10 +114,10 @@ export const getArchivedShowsController = asyncHandler(async (req, res) => {
 });
 
 export const archiveShowController = asyncHandler(async (req, res) => {
-  const { showId } = req.body;
+  const { showId, actionById, actionByName } = req.body;
 
   if (!showId) {
-    throw new AppError("Show ID is required", HttpStatusCodes.BadRequest);
+    throw new AppError("Show ID and Actor is required", HttpStatusCodes.BadRequest);
   }
 
   const exists = await doesShowExist(showId);
@@ -111,15 +126,26 @@ export const archiveShowController = asyncHandler(async (req, res) => {
     throw new AppError("Show Not Found", HttpStatusCodes.NotFound);
   }
 
-  await archiveShow(showId);
+  const show = await archiveShow(showId);
+
+  await sendShowNotification({
+    actionBy: actionById,
+    showId: show.showId,
+    showTitle: show.title,
+    showType: show.showType,
+    department: show.departmentId,
+    action: ShowNotificationAction.ARCHIVE,
+    name: actionByName,
+  });
+
   res.status(HttpStatusCodes.OK).json({ message: "Show archived successfully." });
 });
 
 export const unArchiveShowController = asyncHandler(async (req, res) => {
-  const { showId } = req.body;
+  const { showId, actionById, actionByName } = req.body;
 
   if (!showId) {
-    throw new AppError("Show ID is required", HttpStatusCodes.BadRequest);
+    throw new AppError("Show ID and Actor is required", HttpStatusCodes.BadRequest);
   }
 
   const exists = await doesShowExist(showId);
@@ -127,12 +153,23 @@ export const unArchiveShowController = asyncHandler(async (req, res) => {
   if (!exists) {
     throw new AppError("Show Not Found", HttpStatusCodes.NotFound);
   }
-  await unArchiveShow(showId);
+  const show = await unArchiveShow(showId);
+
+  await sendShowNotification({
+    actionBy: actionById,
+    showId: show.showId,
+    showTitle: show.title,
+    showType: show.showType,
+    department: show.departmentId,
+    action: ShowNotificationAction.UNARCHIVE,
+    name: actionByName,
+  });
+
   res.status(HttpStatusCodes.OK).json({ message: "Show unarchived successfully." });
 });
 
 export const deleteShowController = asyncHandler(async (req, res) => {
-  const { showId } = req.body;
+  const { showId, actionById, actionByName } = req.body;
 
   if (!showId) {
     throw new AppError("Show ID is required", HttpStatusCodes.BadRequest);
@@ -144,7 +181,18 @@ export const deleteShowController = asyncHandler(async (req, res) => {
     throw new AppError("Show Not Found", HttpStatusCodes.NotFound);
   }
 
-  await deleteShow(showId);
+  const show = await deleteShow(showId);
+
+  await sendShowNotification({
+    actionBy: actionById,
+    showId: show.showId,
+    showTitle: show.title,
+    showType: show.showType,
+    department: show.departmentId,
+    action: ShowNotificationAction.DELETE,
+    name: actionByName,
+  });
+
   res.status(HttpStatusCodes.OK).json({ message: "Show deleted successfully." });
 });
 

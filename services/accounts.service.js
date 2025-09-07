@@ -270,3 +270,9 @@ export const archiveUser = async (userId) => {
 export const unArchiveUser = async (userId) => {
   await prisma.users.update({ where: { userId }, data: { isArchived: false } });
 };
+
+export const getUserRoles = async (userId) => {
+  const roles = await prisma.userroles.findMany({ where: { userId } });
+
+  return roles.map((role) => role.role);
+};

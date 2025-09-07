@@ -2,15 +2,17 @@ import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import cookieParser from "cookie-parser";
-
 import authRoute from "./routes/auth.route.js";
+import { createServer } from "http";
 import { router as departmentRoute } from "./routes/department.route.js";
 import { router as showRoute } from "./routes/show.route.js";
 import { router as scheduleRoute } from "./routes/schedule.route.js";
 import { router as genresRoute } from "./routes/genres.route.js";
 import { router as accountsRoute } from "./routes/accounts.route.js";
-
+import { router as notifcationRouter } from "./routes/notification.route.js";
 import { errorHandler } from "./middleware/errorHandler.middleware.js";
+import { initSocket } from "./utils/socketInstance.js";
+import { registerSocketHandlers } from "./utils/socketHandler.js";
 
 dotenv.config();
 
@@ -34,12 +36,19 @@ app.use("/api/department", departmentRoute);
 app.use("/api/show", showRoute);
 app.use("/api/schedule", scheduleRoute);
 app.use("/api/genres", genresRoute);
+app.use("/api/notification", notifcationRouter);
 
 app.get("/", (req, res) => {
   res.send("Hello ESM!");
 });
 
 app.use(errorHandler);
-app.listen(PORT, () => {
+
+const httpServer = createServer(app);
+
+const io = initSocket(httpServer);
+registerSocketHandlers(io);
+
+httpServer.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
 });

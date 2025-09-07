@@ -24,6 +24,26 @@ export const createDepartment = async ({ name, logoUrl }) => {
   return newDepartment;
 };
 
+export const getDepartmentTrainer = async (departmentId) => {
+  const trainer = await prisma.department.findUnique({
+    where: { departmentId },
+    select: {
+      users: {
+        select: {
+          firstName: true,
+          lastName: true,
+          userId: true,
+        },
+      },
+    },
+  });
+
+  return {
+    name: trainer.users.firstName + " " + trainer.users.lastName,
+    id: trainer.users.userId,
+  };
+};
+
 export const getDepartments = async () => {
   const departments = await prisma.department.findMany({
     include: {

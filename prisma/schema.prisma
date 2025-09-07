@@ -46,18 +46,17 @@ model genre {
 }
 
 model notifications {
-  notificationId                        String             @id @db.VarChar(36)
-  senderId                              String             @db.VarChar(36)
-  receiverId                            String             @db.VarChar(36)
-  type                                  notifications_type
-  message                               String             @db.Text
-  isRead                                Boolean?           @default(false)
-  sentAt                                DateTime?          @default(now()) @db.Timestamp(0)
-  users_notifications_senderIdTousers   users              @relation("notifications_senderIdTousers", fields: [senderId], references: [userId], map: "notifications_ibfk_1")
-  users_notifications_receiverIdTousers users              @relation("notifications_receiverIdTousers", fields: [receiverId], references: [userId], map: "notifications_ibfk_2")
+  notificationId                      String                 @id @db.VarChar(36)
+  senderId                            String                 @db.VarChar(36)
+  message                             String                 @db.Text
+  title                               String                 @db.VarChar(46)
+  sentAt                              DateTime?              @default(now()) @db.Timestamp(0)
+  metaData                            Json?
+  type                                notifications_type
+  notificationdelivery                notificationdelivery[]
+  users_notifications_senderIdTousers users                  @relation("notifications_senderIdTousers", fields: [senderId], references: [userId], onDelete: Cascade, map: "notifications_ibfk_1")
 
-  @@index([senderId], map: "notifications_ibfk_1")
-  @@index([receiverId], map: "notifications_ibfk_2")
+  @@index([senderId], map: "notification_fk1_idx")
 }
 
 model reservations {
@@ -171,22 +170,22 @@ model ticket {
 }
 
 model users {
-  userId                                               String            @id @db.VarChar(36)
-  firstName                                            String            @db.VarChar(100)
-  lastName                                             String            @db.VarChar(100)
-  email                                                String            @unique(map: "email") @db.VarChar(150)
-  password                                             String            @db.VarChar(255)
-  createdAt                                            DateTime          @default(now()) @db.Timestamp(0)
-  isArchived                                           Boolean           @default(false)
-  isLocked                                             Boolean           @default(false)
+  userId                                               String                 @id @db.VarChar(36)
+  firstName                                            String                 @db.VarChar(100)
+  lastName                                             String                 @db.VarChar(100)
+  email                                                String                 @unique(map: "email") @db.VarChar(150)
+  password                                             String                 @db.VarChar(255)
+  createdAt                                            DateTime               @default(now()) @db.Timestamp(0)
+  isArchived                                           Boolean                @default(false)
+  isLocked                                             Boolean                @default(false)
   department                                           department?
   distributor                                          distributor?
-  notifications_notifications_senderIdTousers          notifications[]   @relation("notifications_senderIdTousers")
-  notifications_notifications_receiverIdTousers        notifications[]   @relation("notifications_receiverIdTousers")
+  notificationdelivery                                 notificationdelivery[]
+  notifications_notifications_senderIdTousers          notifications[]        @relation("notifications_senderIdTousers")
   shows                                                shows[]
   ticket                                               ticket[]
-  ticketactionlog_ticketactionlog_actionByTousers      ticketactionlog[] @relation("ticketactionlog_actionByTousers")
-  ticketactionlog_ticketactionlog_distributorIdTousers ticketactionlog[] @relation("ticketactionlog_distributorIdTousers")
+  ticketactionlog_ticketactionlog_actionByTousers      ticketactionlog[]      @relation("ticketactionlog_actionByTousers")
+  ticketactionlog_ticketactionlog_distributorIdTousers ticketactionlog[]      @relation("ticketactionlog_distributorIdTousers")
   userroles                                            userroles[]
 }
 
@@ -245,10 +244,16 @@ model userroles {
   @@index([role], map: "fk_2_idx")
 }
 
-enum notifications_type {
-  distributorToCCA
-  reservationReminder
-  general
+model notificationdelivery {
+  id             String        @id @db.VarChar(36)
+  notificationId String        @db.VarChar(36)
+  receipientId   String        @db.VarChar(36)
+  readAt         DateTime?     @db.Timestamp(0)
+  users          users         @relation(fields: [receipientId], references: [userId], onDelete: Cascade, map: "delivery_fk1")
+  notifications  notifications @relation(fields: [notificationId], references: [notificationId], onDelete: Cascade, map: "delivery_fk2")
+
+  @@index([receipientId], map: "delivery_fk1_idx")
+  @@index([notificationId], map: "delivery_fk2")
 }
 
 enum shows_showType {
@@ -307,4 +312,23 @@ enum ticketactionlog_actionType {
 enum ticket_ticketSection {
   orchestra
   balcony
+}
+
+enum notifications_type {
+  createShow
+  createMajorProduction
+  deleteShow
+  archiveShow
+  unarchiveShow
+  addSchedule
+  closeSchedule
+  openSchedule
+  deleteSchedule
+  allocateTicket
+  unallocateTicket
+  remitTicket
+  unremitTicket
+  soldTicket
+  unsoldTicket
+  addHeadRole
 }
