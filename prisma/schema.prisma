@@ -229,19 +229,13 @@ model ticketactionlog {
   @@index([scheduleId], map: "schedule_fk1_idx")
 }
 
-model roles {
-  role      String      @id @unique(map: "role_UNIQUE") @db.VarChar(36)
-  userroles userroles[]
-}
-
 model userroles {
-  userId String @db.VarChar(36)
-  role   String @db.VarChar(36)
-  users  users  @relation(fields: [userId], references: [userId], onDelete: Cascade, map: "fk_1")
-  roles  roles  @relation(fields: [role], references: [role], onDelete: Cascade, map: "fk_2")
+  userId String         @db.VarChar(36)
+  role   userroles_role
+  users  users          @relation(fields: [userId], references: [userId], onDelete: Cascade, map: "fk_1")
 
   @@id([userId, role])
-  @@index([role], map: "fk_2_idx")
+  @@index([role], map: "roles")
 }
 
 model notificationdelivery {
@@ -331,4 +325,10 @@ enum notifications_type {
   soldTicket
   unsoldTicket
   addHeadRole
+}
+
+enum userroles_role {
+  head
+  trainer
+  distributor
 }

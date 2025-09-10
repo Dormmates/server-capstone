@@ -1,14 +1,17 @@
 import { asyncHandler } from "../middleware/asyncHandler.middleware.js";
 import { AppError, HttpStatusCodes } from "../middleware/errorHandler.middleware.js";
 import {
+  addCCAHeadRoles,
   archiveUser,
   createDistributorAccount,
   deleteUserSafely,
   editAccount,
   editDistributorAccount,
+  getCCAHeads,
   getDistributors,
   getDistributorTypes,
   getTrainers,
+  removeCCAHeadRole,
   unArchiveUser,
 } from "../services/accounts.service.js";
 import { createAccount, getUserById } from "../services/auth.service.js";
@@ -219,8 +222,51 @@ export const getDistributorInformationController = asyncHandler(async (req, res,
     throw new AppError("Missing Post Fields");
   }
 
-  console.log(id);
-
   const user = await getUserById(id);
   res.json(user);
+});
+
+export const addCCAHeadRoleController = asyncHandler(async (req, res, next) => {
+  const { userIds } = req.body;
+
+  if (!userIds) {
+    throw new AppError("Missing Required Fields", HttpStatusCodes.BadRequest);
+  }
+
+  await addCCAHeadRoles(userIds);
+  res.json({ message: "Added Role" });
+});
+
+export const createCCAHeadAccountController = asyncHandler(async (req, res, next) => {
+  const { firstName, lastName, email } = req.body;
+
+  if (!firstName || !lastName || !email) {
+    throw new AppError("Missing Required Fields", HttpStatusCodes.BadRequest);
+  }
+
+  const emailCheck = validateEmail({ requiredDomain: "@slu.edu.ph", email });
+
+  if (!emailCheck.valid) {
+    throw new AppError(emailCheck.message, HttpStatusCodes.BadRequest);
+  }
+
+  const newAccount = await createAccount({ firstName, lastName, userType: "head", email, password: "123456" });
+
+  res.status(HttpStatusCodes.Created).json(newAccount);
+});
+
+export const getCCAHeadAccountsController = asyncHandler(async (req, res) => {
+  const accounts = await getCCAHeads();
+  res.json(accounts);
+});
+
+export const removeCCAHeadRoleController = asyncHandler(async (req, res) => {
+  const { userId } = req.body;
+
+  if (!userId) {
+    throw new AppError("Missing Required Fields", HttpStatusCodes.BadRequest);
+  }
+
+  await removeCCAHeadRole(userId);
+  res.json({ message: "Remove Role" });
 });

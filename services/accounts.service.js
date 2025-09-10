@@ -82,6 +82,34 @@ export const getDistributors = async (departmentId) => {
   }));
 };
 
+export const getCCAHeads = async () => {
+  const heads = await prisma.users.findMany({
+    where: {
+      userroles: {
+        some: { role: "head" },
+      },
+    },
+    include: {
+      department: {
+        select: {
+          name: true,
+          departmentId: true,
+        },
+      },
+      userroles: {
+        select: {
+          role: true,
+        },
+      },
+    },
+  });
+
+  return heads.map((user) => ({
+    ...user,
+    roles: user.userroles.map((ur) => ur.role),
+  }));
+};
+
 export const editAccount = async ({ userId, firstName, lastName, email }) => {
   const user = await getUserByEmail(email);
 
@@ -247,7 +275,7 @@ export const deleteUserSafely = async (userId) => {
   const hasReferences =
     (await prisma.department.count({ where: { trainerId: userId } })) > 0 ||
     (await prisma.notifications.count({
-      where: { OR: [{ senderId: userId }, { receiverId: userId }] },
+      where: { OR: [{ senderId: userId }] },
     })) > 0 ||
     (await prisma.shows.count({ where: { createdBy: userId } })) > 0 ||
     (await prisma.ticket.count({ where: { distributorId: userId } })) > 0 ||
@@ -275,4 +303,32 @@ export const getUserRoles = async (userId) => {
   const roles = await prisma.userroles.findMany({ where: { userId } });
 
   return roles.map((role) => role.role);
+};
+
+export const addCCAHeadRoles = async (userIds) => {
+  return prisma.userroles.createMany({
+    data: userIds.map((id) => ({
+      userId: id,
+      role: "head",
+    })),
+  });
+};
+
+export const removeCCAHeadRole = async (userId) => {
+  const headCount = await prisma.userroles.count({
+    where: { role: "head" },
+  });
+
+  if (headCount <= 1) {
+    throw new AppError("Cannot remove the last remaining CCA Head.");
+  }
+
+  return prisma.userroles.delete({
+    where: {
+      userId_role: {
+        userId,
+        role: "head",
+      },
+    },
+  });
 };

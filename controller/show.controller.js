@@ -41,8 +41,6 @@ export const createShowController = asyncHandler(async (req, res, next) => {
 export const updateShowController = asyncHandler(async (req, res, next) => {
   const { showId, showTitle, description, department, genre, showType } = req.body;
 
-  console.log(req.body);
-
   const { imageUrl } = req;
 
   if (!showTitle || !description || !genre || !showType) {
@@ -54,12 +52,14 @@ export const updateShowController = asyncHandler(async (req, res, next) => {
     .map((g) => g.trim())
     .filter((g) => g !== "");
 
+  const departmentValue = showType === "majorProduction" ? null : department;
+
   const updatedShow = await updateShow({
     showId,
     showTitle,
     coverImage: imageUrl,
     description,
-    department,
+    department: departmentValue,
     genre: cleanedGenres,
     showType,
   });
