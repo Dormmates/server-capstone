@@ -206,3 +206,153 @@ export const deleteShow = async (showId) => {
     where: { showId },
   });
 };
+
+export const generateSalesReport = async (showId, scheduleIds) => {
+  const show = await prisma.shows.findUnique({
+    where: { showId },
+    include: {
+      showschedules: {
+        where: scheduleIds ? { scheduleId: { in: scheduleIds } } : undefined,
+        include: {
+          ticket: {
+            include: {
+              users: true,
+              showseats: true,
+            },
+          },
+        },
+      },
+    },
+  });
+
+  if (!show) throw new AppError("Show not found");
+
+  const report = {
+    showId: show.showId,
+    showTitle: show.title,
+    schedules: [],
+    overallTotals: {
+      totalTickets: 0,
+      soldTickets: 0,
+      unsoldTickets: 0,
+      totalDiscount: 0,
+      ticketSales: 0,
+      totalCommission: 0,
+      netSales: 0,
+      discountBreakdown: {},
+    },
+  };
+
+  for (const schedule of show.showschedules) {
+    const scheduleTotals = {
+      scheduleId: schedule.scheduleId,
+      datetime: schedule.datetime,
+      totalTickets: schedule.ticket.length,
+      soldTickets: 0,
+      unsoldTickets: 0,
+      totalDiscount: 0,
+      ticketSales: 0,
+      totalCommission: 0,
+      netSales: 0,
+      salesBySection: [],
+      salesByDistributor: [],
+    };
+
+    const sectionMap = new Map();
+    const distributorsMap = new Map();
+
+    for (const t of schedule.ticket) {
+      const seat = t.showseats[0]; // assuming 1 ticket -> 1 seat
+      const section = seat ? seat.seatSection : "General";
+
+      const isSold = ["sold", "remitted", "lost"].includes(t.status);
+      const discount = t.discountPercentage ? t.ticketPrice * (t.discountPercentage / 100) : 0;
+      const netPrice = isSold ? t.ticketPrice - discount : 0;
+      const commission = schedule.commissionFee ? (schedule.commissionFee * netPrice) / 100 : 0;
+
+      if (isSold) {
+        scheduleTotals.soldTickets += 1;
+        scheduleTotals.ticketSales += netPrice;
+        scheduleTotals.totalDiscount += discount;
+      }
+
+      // Section breakdown
+      if (!sectionMap.has(section)) {
+        sectionMap.set(section, {
+          section,
+          ticketPrice: t.ticketPrice, // base price for this section
+          ticketsSold: 0,
+          totalSales: 0,
+          totalDiscount: 0,
+          discountBreakdown: {}, // discounted tickets by percentage
+        });
+      }
+
+      if (isSold) {
+        const sec = sectionMap.get(section);
+        sec.ticketsSold += 1;
+        sec.totalSales += netPrice;
+        sec.totalDiscount += discount;
+
+        // Track discount breakdown
+        if (t.discountPercentage) {
+          const pct = t.discountPercentage;
+          if (!sec.discountBreakdown[pct]) {
+            sec.discountBreakdown[pct] = { count: 0, totalAmount: 0 };
+          }
+          sec.discountBreakdown[pct].count += 1;
+          sec.discountBreakdown[pct].totalAmount += netPrice;
+        }
+      }
+
+      // Distributor breakdown
+      const distributorId = t.users ? t.users.userId : "online";
+      const distributorName = t.users ? `${t.users.firstName} ${t.users.lastName}` : "Online Reservation";
+
+      if (!distributorsMap.has(distributorId)) {
+        distributorsMap.set(distributorId, {
+          distributorId,
+          distributorName,
+          ticketsSold: 0,
+          totalAmountRemitted: 0,
+          totalCommission: 0,
+        });
+      }
+      if (isSold) {
+        const dist = distributorsMap.get(distributorId);
+        dist.ticketsSold += 1;
+        dist.totalAmountRemitted += netPrice;
+        dist.totalCommission += commission;
+      }
+    }
+
+    scheduleTotals.unsoldTickets = scheduleTotals.totalTickets - scheduleTotals.soldTickets;
+    scheduleTotals.netSales = scheduleTotals.ticketSales - scheduleTotals.totalCommission;
+    scheduleTotals.salesBySection = Array.from(sectionMap.values());
+    scheduleTotals.salesByDistributor = Array.from(distributorsMap.values());
+
+    report.schedules.push(scheduleTotals);
+
+    // Update overall totals
+    report.overallTotals.totalTickets += scheduleTotals.totalTickets;
+    report.overallTotals.soldTickets += scheduleTotals.soldTickets;
+    report.overallTotals.unsoldTickets += scheduleTotals.unsoldTickets;
+    report.overallTotals.totalDiscount += scheduleTotals.totalDiscount;
+    report.overallTotals.ticketSales += scheduleTotals.ticketSales;
+    report.overallTotals.totalCommission += scheduleTotals.totalCommission;
+    report.overallTotals.netSales += scheduleTotals.netSales;
+
+    // Update overall discount breakdown
+    for (const section of scheduleTotals.salesBySection) {
+      for (const [pct, data] of Object.entries(section.discountBreakdown)) {
+        if (!report.overallTotals.discountBreakdown[pct]) {
+          report.overallTotals.discountBreakdown[pct] = { count: 0, totalAmount: 0 };
+        }
+        report.overallTotals.discountBreakdown[pct].count += data.count;
+        report.overallTotals.discountBreakdown[pct].totalAmount += data.totalAmount;
+      }
+    }
+  }
+
+  return report;
+};

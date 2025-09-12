@@ -5,7 +5,17 @@ import { getUserById } from "../services/auth.service.js";
 import { getDepartmentTrainer } from "../services/department.service.js";
 import { getDistributorShowsAndTicketsAllocated } from "../services/distributorTickets.service.js";
 import { createNotification, getCcaHeadIds, getTrainerIds } from "../services/notification.service.js";
-import { archiveShow, createShow, deleteShow, doesShowExist, getShow, getShows, unArchiveShow, updateShow } from "../services/show.service.js";
+import {
+  archiveShow,
+  createShow,
+  deleteShow,
+  doesShowExist,
+  generateSalesReport,
+  getShow,
+  getShows,
+  unArchiveShow,
+  updateShow,
+} from "../services/show.service.js";
 import { sendShowNotification, ShowNotificationAction } from "../utils/sendNotification.js";
 
 export const createShowController = asyncHandler(async (req, res, next) => {
@@ -201,4 +211,14 @@ export const getDistributorShowsAndTicketsAllocatedController = asyncHandler(asy
 
   const data = await getDistributorShowsAndTicketsAllocated({ distributorId });
   res.json(data);
+});
+
+export const generateSalesReportController = asyncHandler(async (req, res, next) => {
+  const { showId } = req.params;
+  const { scheduleIds } = req.query;
+
+  const scheduleIdArray = scheduleIds ? scheduleIds.split(",") : undefined;
+
+  const report = await generateSalesReport(showId, scheduleIdArray);
+  res.json(report);
 });

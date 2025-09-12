@@ -9,6 +9,7 @@ import {
   updateShowController,
   deleteShowController,
   getDistributorShowsAndTicketsAllocatedController,
+  generateSalesReportController,
 } from "../controller/show.controller.js";
 import { requireRole, verifyAuth } from "../middleware/auth.middleware.js";
 import upload from "../utils/upload.js";
@@ -32,3 +33,5 @@ router.get(
 );
 
 router.patch("/", verifyAuth, requireRole("head", "trainer"), upload.single("image"), updateWithReplace, updateShowController);
+
+router.get("/salesreport/:showId", generateSalesReportController);

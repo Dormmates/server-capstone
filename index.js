@@ -19,6 +19,10 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+app.get("/health", (req, res) => {
+  res.type("text").send("OK");
+});
+
 app.use(
   cors({
     origin: process.env.FRONTEND_URL,
@@ -39,7 +43,7 @@ app.use("/api/genres", genresRoute);
 app.use("/api/notification", notifcationRouter);
 
 app.get("/", (req, res) => {
-  res.send("Hello ESM!");
+  res.send("Server Documentation Soon");
 });
 
 app.use(errorHandler);
