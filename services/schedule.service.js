@@ -205,6 +205,7 @@ export const generateScheduleTicketsAndSeats = async ({ tx, scheduleId, seatPric
         scheduleId,
         seatNumber: s.seatNumber,
         seatSection: s.section,
+        rotation: s.rotation,
         x: s.x,
         y: s.y,
         ticketId: null,
@@ -378,6 +379,7 @@ export const getScheduleSeatMap = async (scheduleId) => {
       status: true,
       x: true,
       y: true,
+      rotation: true,
       ticket: {
         select: {
           controlNumber: true,
@@ -414,6 +416,7 @@ export const getScheduleSeatMap = async (scheduleId) => {
     y: seat.y,
     row: seat.seatNumber.replace(/[0-9]/g, ""),
     section: seat.seatSection,
+    rotation: seat.rotation,
     status: seat.status,
     ticketControlNumber: seat.ticket?.controlNumber ?? 0,
     ticketPrice: seat.ticket?.ticketPrice ?? 0,
@@ -939,5 +942,3 @@ export const unremitTicketSales = async ({ remittedTickets, scheduleId, distribu
     });
   });
 };
-
-

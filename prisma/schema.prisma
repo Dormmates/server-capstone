@@ -140,6 +140,7 @@ model showseats {
   x             Float                 @db.Float
   y             Float                 @db.Float
   ticketId      String?               @db.VarChar(36)
+  rotation      String?               @db.VarChar(45)
   showschedules showschedules         @relation(fields: [scheduleId], references: [scheduleId], onDelete: Cascade, map: "showseats_ibfk_1")
   ticket        ticket?               @relation(fields: [ticketId], references: [ticketId], onDelete: Cascade, map: "ticket_fk_2")
 
