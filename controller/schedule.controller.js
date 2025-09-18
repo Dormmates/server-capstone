@@ -9,6 +9,7 @@ import {
 } from "../services/distributorTickets.service.js";
 import {
   addShowSchedule,
+  addTallyData,
   allocateTicket,
   closeSchedule,
   deleteSchedule,
@@ -19,6 +20,7 @@ import {
   getScheduleSummary,
   getScheduleTickets,
   getShowSchedules,
+  getTallyData,
   openSchedule,
   remitTicketSales,
   reschedule,
@@ -319,4 +321,26 @@ export const unRemitTicketSalesController = asyncHandler(async (req, res, next) 
 
   await unremitTicketSales({ remittedTickets, scheduleId, distributorId, actionBy, remarks });
   res.json({ message: "Unremitted" });
+});
+
+export const updateTallyDataController = asyncHandler(async (req, res, next) => {
+  const { femaleCount, maleCount, scheduleId } = req.body;
+
+  if (!femaleCount || !maleCount || !scheduleId) {
+    throw new AppError("Missing Post Fields", HttpStatusCodes.BadRequest);
+  }
+
+  await addTallyData({ femaleCount: Number(femaleCount), maleCount: Number(maleCount), scheduleId });
+  res.status(HttpStatusCodes.OK).json("Updated");
+});
+
+export const getTallyDataController = asyncHandler(async (req, res, next) => {
+  const { scheduleId } = req.params;
+
+  if (!scheduleId) {
+    throw new AppError("Missing Query Fields", HttpStatusCodes.BadRequest);
+  }
+
+  const data = await getTallyData(scheduleId);
+  res.json(data);
 });

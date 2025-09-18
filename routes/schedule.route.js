@@ -15,6 +15,7 @@ import {
   getScheduleTicketsController,
   getScheudleSummaryController,
   getShowSchedulesController,
+  getTallyDataController,
   getTicketsAllocatedOfDistributorController,
   markTicketAsSoldController,
   markTicketAsUnSoldController,
@@ -23,6 +24,7 @@ import {
   rescheduleController,
   unAllocateTicketController,
   unRemitTicketSalesController,
+  updateTallyDataController,
 } from "../controller/schedule.controller.js";
 import { requireRole, verifyAuth } from "../middleware/auth.middleware.js";
 
@@ -47,10 +49,12 @@ router.get("/allocationHistory/:distributorId", getAllDistributorAllocationHisto
 router.get("/:scheduleId/remittanceHistory/:distributorId", getDistributorRemittanceHistoryController);
 router.get("/remittanceHistory/:distributorId", getAllDistributorRemittanceHistoryController);
 router.get("/:scheduleId/ticketSummary/:distributorId", getDistributorTicketsSummaryController);
+router.get("/tallyData/:scheduleId", verifyAuth, requireRole("head", "trainer"), getTallyDataController);
 
 router.post("/", verifyAuth, requireRole("head", "trainer"), addShowScheduleController);
 router.post("/allocate/controlNumber", verifyAuth, requireRole("head", "trainer"), allocateTicketController);
 router.post("/unallocate/controlNumber", verifyAuth, requireRole("head", "trainer"), unAllocateTicketController);
+router.post("/tallyData", verifyAuth, requireRole("head", "trainer"), updateTallyDataController);
 
 router.post("/remit", verifyAuth, requireRole("head", "trainer"), remitTicketSalesController);
 router.post("/unremit", verifyAuth, requireRole("head", "trainer"), unRemitTicketSalesController);

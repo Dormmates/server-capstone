@@ -942,3 +942,20 @@ export const unremitTicketSales = async ({ remittedTickets, scheduleId, distribu
     });
   });
 };
+
+export const addTallyData = async ({ femaleCount, maleCount, scheduleId }) => {
+  return await prisma.showschedules.update({
+    where: { scheduleId },
+    data: {
+      maleCount,
+      femaleCount,
+    },
+    select: {
+      scheduleId: true,
+    },
+  });
+};
+
+export const getTallyData = async (scheduleId) => {
+  return await prisma.showschedules.findUnique({ where: { scheduleId }, select: { femaleCount: true, maleCount: true } });
+};
