@@ -24,11 +24,11 @@ export const loginController = asyncHandler(async (req, res) => {
     throw new AppError("Account is locked or archived", HttpStatusCodes.Forbidden);
   }
 
-  const hasRole = (rolesToCheck) => user.roles.some((r) => rolesToCheck.includes(r));
+  // const hasRole = (rolesToCheck) => user.roles.some((r) => rolesToCheck.includes(r));
 
-  if ((hasRole(["head", "trainer"]) && expectedRole !== "cca") || (hasRole(["distributor"]) && expectedRole !== "distributor")) {
-    throw new AppError("Unauthorized Account Role", HttpStatusCodes.Forbidden);
-  }
+  // if ((hasRole(["head", "trainer"]) && expectedRole !== "cca") || (hasRole(["distributor"]) && expectedRole !== "distributor")) {
+  //   throw new AppError("Unauthorized Account Role", HttpStatusCodes.Forbidden);
+  // }
 
   res.cookie("authToken", generateToken({ userId: user.userId, userRole: user.roles }), {
     httpOnly: true,
