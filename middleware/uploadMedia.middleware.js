@@ -55,13 +55,11 @@ export const updateWithReplace = asyncHandler(async (req, res, next) => {
 
   const mediaURL = `https://cloud.appwrite.io/v1/storage/buckets/${process.env.APP_WRITE_BUCKET_ID}/files/${uploadedFile.$id}/view?project=${process.env.APP_WRITE_PROJECT_ID}&mode=admin`;
 
-  // Delete old file if provided
+  // Delete old file if provided (fire-and-forget)
   if (oldFileId) {
-    try {
-      await storage.deleteFile(process.env.APP_WRITE_BUCKET_ID, oldFileId);
-    } catch (err) {
+    storage.deleteFile(process.env.APP_WRITE_BUCKET_ID, oldFileId).catch((err) => {
       console.error(`Failed to delete old file (${oldFileId}):`, err.message);
-    }
+    });
   }
 
   req.imageUrl = mediaURL;

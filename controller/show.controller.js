@@ -1,10 +1,6 @@
 import { asyncHandler } from "../middleware/asyncHandler.middleware.js";
 import { AppError, HttpStatusCodes } from "../middleware/errorHandler.middleware.js";
-import { getUserRoles } from "../services/accounts.service.js";
-import { getUserById } from "../services/auth.service.js";
-import { getDepartmentTrainer } from "../services/department.service.js";
 import { getDistributorShowsAndTicketsAllocated } from "../services/distributorTickets.service.js";
-import { createNotification, getCcaHeadIds, getTrainerIds } from "../services/notification.service.js";
 import {
   archiveShow,
   createShow,

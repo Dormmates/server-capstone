@@ -1,3 +1,5 @@
+import { storage } from "../utils/appwriteconfig.js";
+import { getFileId } from "../utils/general.utils.js";
 import prisma from "../utils/primsa.connection.js";
 
 export const doesShowExist = async (showId) => {
@@ -202,9 +204,17 @@ export const unArchiveShow = async (showId) => {
 };
 
 export const deleteShow = async (showId) => {
-  return await prisma.shows.delete({
+  const deletedShow = await prisma.shows.delete({
     where: { showId },
   });
+
+  const fileId = getFileId(deletedShow.showCover);
+
+  if (fileId) {
+    storage.deleteFile(process.env.APP_WRITE_BUCKET_ID, fileId).catch((e) => console.error("File deletion failed:", e));
+  }
+
+  return deletedShow;
 };
 
 export const generateSalesReport = async (showId, scheduleIds) => {

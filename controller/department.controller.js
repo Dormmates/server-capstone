@@ -1,7 +1,9 @@
 import { asyncHandler } from "../middleware/asyncHandler.middleware.js";
 import { AppError, HttpStatusCodes } from "../middleware/errorHandler.middleware.js";
 import {
+  assignDepartmentTrainer,
   createDepartment,
+  createTrainerAndAssign,
   deleteDepartment,
   getDepartments,
   removeDepartmentTrainerByTrainerId,
@@ -57,4 +59,27 @@ export const removeDepartmentTrainerController = asyncHandler(async (req, res, n
   await removeDepartmentTrainerByTrainerId(userId);
 
   res.json({ message: "Removed" });
+});
+
+export const createTrainerAndAssignController = asyncHandler(async (req, res, next) => {
+  const { departmentId, firstName, lastName, email } = req.body;
+
+  if (!departmentId || !firstName || !lastName || !email) {
+    throw new AppError("Missing Post Fields", HttpStatusCodes.BadRequest);
+  }
+
+  await createTrainerAndAssign({ departmentId, firstName, lastName, email });
+
+  res.json({ message: "Success" });
+});
+
+export const assignDepartmentTrainerController = asyncHandler(async (req, res, next) => {
+  const { departmentId, userId } = req.body;
+
+  if (!departmentId || !userId) {
+    throw new AppError("Missing Post Fields", HttpStatusCodes.BadRequest);
+  }
+
+  await assignDepartmentTrainer({ departmentId, trainerId: userId });
+  res.json({ message: "Success" });
 });

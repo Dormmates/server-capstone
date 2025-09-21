@@ -251,6 +251,15 @@ model notificationdelivery {
   @@index([notificationId], map: "delivery_fk2")
 }
 
+model ticketpricing {
+  id            String             @id @db.VarChar(36)
+  priceName     String             @db.VarChar(45)
+  fixedPrice    Decimal?           @db.Decimal(10, 2)
+  commisionFee  Decimal            @db.Decimal(10, 2)
+  sectionPrices Json?
+  type          ticketpricing_type
+}
+
 enum shows_showType {
   showCase
   majorConcert
@@ -332,4 +341,9 @@ enum userroles_role {
   head
   trainer
   distributor
+}
+
+enum ticketpricing_type {
+  fixed
+  sectioned
 }

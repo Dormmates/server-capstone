@@ -1,6 +1,9 @@
 import { AppError, HttpStatusCodes } from "../middleware/errorHandler.middleware.js";
-
+import { storage } from "../utils/appwriteconfig.js";
+import { getFileId } from "../utils/general.utils.js";
 import prisma from "../utils/primsa.connection.js";
+import { validateEmail } from "../utils/validators.js";
+import { getUserByEmail } from "./auth.service.js";
 
 const findDepartment = async (name) => {
   return prisma.department.findUnique({ where: { name } });
@@ -76,8 +79,13 @@ export const getDepartments = async () => {
 export const deleteDepartment = async (departmentId) => {
   const shows = await prisma.shows.count({ where: { departmentId } });
   if (shows !== 0) throw new AppError("Cannot Delete a Department with Shows", HttpStatusCodes.Forbidden);
+  const deletedDepartment = await prisma.department.delete({ where: { departmentId } });
 
-  return await prisma.department.delete({ where: { departmentId } });
+  const fileId = getFileId(deletedDepartment.logoUrl);
+
+  if (fileId) {
+    storage.deleteFile(process.env.APP_WRITE_BUCKET_ID, fileId).catch((e) => console.error("File deletion failed:", e));
+  }
 };
 
 export const updateDepartment = async ({ departmentId, name, logoUrl }) => {
@@ -116,4 +124,44 @@ export const assignDepartmentTrainer = async ({ departmentId, trainerId, tx = pr
   }
 
   return await tx.department.update({ where: { departmentId }, data: { trainerId } });
+};
+
+export const createTrainerAndAssign = async ({ departmentId, firstName, lastName, email }) => {
+  const user = await getUserByEmail(email);
+
+  if (user) {
+    throw new AppError("Email already exist");
+  }
+
+  if (!validateEmail({ requiredDomain: "slu.edu.ph", email })) {
+    throw new AppError("Only @slu.edu.ph emails are allowed here");
+  }
+
+  const userId = crypto.randomUUID();
+
+  return await prisma.$transaction(async (tx) => {
+    await tx.users.create({
+      data: {
+        userId,
+        firstName,
+        lastName,
+        email,
+        password: "123456",
+        userroles: {
+          create: {
+            role: "trainer",
+          },
+        },
+      },
+    });
+
+    await tx.department.update({
+      where: { departmentId },
+      data: {
+        trainerId: userId,
+      },
+    });
+
+    return "Updated";
+  });
 };

@@ -10,6 +10,7 @@ import { router as scheduleRoute } from "./routes/schedule.route.js";
 import { router as genresRoute } from "./routes/genres.route.js";
 import { router as accountsRoute } from "./routes/accounts.route.js";
 import { router as notifcationRouter } from "./routes/notification.route.js";
+import { router as ticketPricingRouter } from "./routes/ticketprice.route.js";
 import { errorHandler } from "./middleware/errorHandler.middleware.js";
 import { initSocket } from "./utils/socketInstance.js";
 import { registerSocketHandlers } from "./utils/socketHandler.js";
@@ -40,6 +41,7 @@ app.use("/api/department", departmentRoute);
 app.use("/api/show", showRoute);
 app.use("/api/schedule", scheduleRoute);
 app.use("/api/genres", genresRoute);
+app.use("/api/pricing", ticketPricingRouter);
 app.use("/api/notification", notifcationRouter);
 
 app.get("/", (req, res) => {
