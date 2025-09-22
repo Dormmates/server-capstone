@@ -11,12 +11,12 @@ export const loginController = asyncHandler(async (req, res) => {
     throw new AppError("Email, password, and role are required", HttpStatusCodes.BadRequest);
   }
 
-  if (expectedRole !== "distributor") {
-    const emailCheck = validateEmail({ requiredDomain: "@slu.edu.ph", email });
-    if (!emailCheck.valid) {
-      throw new AppError(emailCheck.message, HttpStatusCodes.BadRequest);
-    }
-  }
+  // if (expectedRole !== "distributor") {
+  //   const emailCheck = validateEmail({ requiredDomain: "@slu.edu.ph", email });
+  //   if (!emailCheck.valid) {
+  //     throw new AppError(emailCheck.message, HttpStatusCodes.BadRequest);
+  //   }
+  // }
 
   const user = await login({ email, password });
 

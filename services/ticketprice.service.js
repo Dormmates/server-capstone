@@ -24,6 +24,42 @@ export const newSectionedPricing = async ({ name, sectionedPricing, commissionFe
   });
 };
 
+export const updatSectionedPricing = async ({ priceId, name, sectionedPricing, commissionFee }) => {
+  return await prisma.ticketpricing.update({
+    where: {
+      id: priceId,
+      type: "sectioned",
+    },
+    data: {
+      priceName: name,
+      sectionPrices: sectionedPricing,
+      commisionFee: commissionFee,
+    },
+  });
+};
+
+export const updatFixedPricing = async ({ priceId, name, fixedPrice, commissionFee }) => {
+  return await prisma.ticketpricing.update({
+    where: {
+      id: priceId,
+      type: "fixed",
+    },
+    data: {
+      priceName: name,
+      fixedPrice,
+      commisionFee: commissionFee,
+    },
+  });
+};
+
+export const deleteSectionedPricing = async (id) => {
+  return await prisma.ticketpricing.delete({ where: { id, type: "sectioned" } });
+};
+
+export const deleteFixedPricing = async (id) => {
+  return await prisma.ticketpricing.delete({ where: { id, type: "fixed" } });
+};
+
 export const getTicketPricings = async () => {
   return await prisma.ticketpricing.findMany();
 };
