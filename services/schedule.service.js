@@ -1,5 +1,6 @@
 import { AppError, HttpStatusCodes } from "../middleware/errorHandler.middleware.js";
 import prisma from "../utils/primsa.connection.js";
+import { getDistributorAllocatedTickets } from "./distributorTickets.service.js";
 
 export const addShowSchedule = async ({
   dates = [],
@@ -239,65 +240,171 @@ export const getScheduleDetails = async (scheduleId) => {
 };
 
 export const getScheduleSummary = async (scheduleId) => {
-  const expected = await prisma.ticket.aggregate({
+  const schedule = await prisma.showschedules.findUnique({ where: { scheduleId } });
+
+  if (!schedule) {
+    throw new AppError("Schedule Not Found");
+  }
+
+  // Tickets Summary
+  const scheduleTickets = await prisma.ticket.findMany({ where: { scheduleId } });
+
+  const summarizeTickets = (tickets) => {
+    return tickets.reduce(
+      (acc, t) => {
+        acc.total += 1;
+
+        if (["sold", "remitted", "lost"].includes(t.status)) {
+          acc.sold += 1;
+        }
+
+        if (["allocated", "not_allocated"].includes(t.status)) {
+          acc.remaining += 1;
+        }
+
+        return acc;
+      },
+      { total: 0, sold: 0, remaining: 0 }
+    );
+  };
+
+  const complimentaryTickets = scheduleTickets.filter((t) => t.isComplimentary).length;
+  const balconyTickets = summarizeTickets(scheduleTickets.filter((t) => t.ticketSection === "balcony" && !t.isComplimentary));
+  const orchestraTickets = summarizeTickets(scheduleTickets.filter((t) => t.ticketSection === "orchestra" && !t.isComplimentary));
+
+  // Distributor Summary
+  const distributors = await prisma.users.findMany({
+    where: {
+      distributor: { isNot: null },
+      ticket: { some: { scheduleId } },
+    },
+    select: {
+      userId: true,
+      firstName: true,
+      lastName: true,
+      email: true,
+    },
+  });
+
+  const mappedDistributors = await Promise.all(
+    distributors.map(async (d) => {
+      const data = await getDistributorAllocatedTickets({ distributorId: d.userId, scheduleId });
+
+      const totalAllocatedTickets = data.length;
+      const soldTickets = data.filter((t) => t.status === "sold" || t.isRemitted).length;
+      const remittedTickets = data.filter((t) => t.isRemitted).length;
+      const unsoldTickets = totalAllocatedTickets - soldTickets;
+      const pendingRemittance = soldTickets - remittedTickets;
+
+      const expected = data.reduce((acc, t) => acc + (Number(t.ticketPrice) - schedule.commissionFee), 0);
+
+      const remitted = data.filter((t) => t.isRemitted).reduce((acc, t) => acc + (Number(t.ticketPrice) - schedule.commissionFee), 0);
+
+      const balanceDue = expected - remitted;
+
+      return {
+        ...d,
+        totalAllocatedTickets,
+        soldTickets,
+        unsoldTickets,
+        remittedTickets,
+        pendingRemittance,
+        expected,
+        remitted,
+        balanceDue,
+      };
+    })
+  );
+
+  //Ticket Prices
+  let ticketPrice;
+  let ticketPricesBySection;
+
+  if (schedule.seatingType === "controlledSeating") {
+    const seats = await prisma.showseats.findMany({
+      where: { scheduleId },
+      include: {
+        ticket: {
+          select: { ticketPrice: true },
+        },
+      },
+    });
+
+    ticketPricesBySection = seats.reduce((acc, seat) => {
+      const section = seat.seatSection;
+      const price = seat.ticket?.ticketPrice || 0;
+
+      if (price > 0 && !acc[section]) {
+        acc[section] = price;
+      }
+
+      return acc;
+    }, {});
+  } else {
+    ticketPrice = scheduleTickets.find((ticket) => ticket.ticketPrice > 0)?.ticketPrice || 0;
+  }
+
+  // Distributor Totals
+  const distributorsTotal = mappedDistributors.reduce(
+    (acc, d) => {
+      acc.allocated += d.totalAllocatedTickets;
+      acc.sold += d.soldTickets;
+      acc.unsold += d.unsoldTickets;
+      acc.remitted += d.remitted;
+      return acc;
+    },
+    { allocated: 0, sold: 0, unsold: 0, remitted: 0 }
+  );
+
+  // Sales Summary
+  const expectedAgg = await prisma.ticket.aggregate({
     where: { scheduleId, isComplimentary: false },
     _sum: { ticketPrice: true },
   });
 
-  const current = await prisma.ticket.aggregate({
-    where: { scheduleId, status: { in: ["lost", "sold", "remitted"] }, isComplimentary: false },
+  const currentAgg = await prisma.ticket.aggregate({
+    where: {
+      scheduleId,
+      status: { in: ["lost", "sold", "remitted"] },
+      isComplimentary: false,
+    },
     _sum: { ticketPrice: true },
   });
 
-  const totalTicket = await prisma.ticket.count({
-    where: { scheduleId },
-  });
+  // gross totals
+  const grossExpected = expectedAgg._sum.ticketPrice || 0;
+  const grossCurrent = currentAgg._sum.ticketPrice || 0;
 
-  const totalOrchestra = await prisma.ticket.count({
-    where: { scheduleId, ticketSection: "orchestra" },
-  });
+  // commission totals
+  const commissionExpected = schedule.commissionFee * (balconyTickets.total + orchestraTickets.total);
+  const commissionCurrent = schedule.commissionFee * (balconyTickets.sold + orchestraTickets.sold);
 
-  const totalBalcony = await prisma.ticket.count({
-    where: { scheduleId, ticketSection: "balcony" },
-  });
-
-  const totalComplimentary = await prisma.ticket.count({
-    where: { scheduleId, isComplimentary: true },
-  });
-
-  const sold = await prisma.ticket.count({
-    where: { scheduleId, status: { in: ["lost", "sold", "remitted"] }, isComplimentary: false },
-  });
-
-  const notAllocated = await prisma.ticket.count({
-    where: { scheduleId, status: "not_allocated", isComplimentary: false },
-  });
-
-  const unsold = await prisma.ticket.count({
-    where: { scheduleId, status: "allocated" },
-  });
-
-  const pendingRemittance = await prisma.ticket.count({
-    where: {
-      scheduleId,
-      status: "sold",
-    },
-  });
+  // net values
+  const expectedSales = grossExpected - commissionExpected;
+  const currentSales = grossCurrent - commissionCurrent;
+  const remainingSales = expectedSales - currentSales;
 
   return {
-    expectedSales: expected._sum.ticketPrice || 0,
-    currentSales: current._sum.ticketPrice || 0,
-    remainingSales: (expected._sum.ticketPrice || 0) - (current._sum.ticketPrice || 0),
-
-    totalTicket,
-    totalOrchestra,
-    totalBalcony,
-    totalComplimentary,
-
-    sold,
-    notAllocated,
-    unsold,
-    pendingRemittance,
+    ticketsSummary: {
+      total: scheduleTickets.length,
+      complimentary: complimentaryTickets,
+      orchestraTickets,
+      balconyTickets,
+    },
+    distributorSummary: {
+      distributors: mappedDistributors,
+      distributorsTotal,
+    },
+    salesSummary: {
+      expected: expectedSales,
+      current: currentSales,
+      remaining: remainingSales,
+      netAfterCommission: currentSales - schedule.commissionFee * (orchestraTickets.sold + balconyTickets.sold),
+    },
+    schedulePrices: {
+      ticketPrice,
+      ticketPricesBySection,
+    },
   };
 };
 
