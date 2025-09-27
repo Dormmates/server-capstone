@@ -251,6 +251,24 @@ export const getShowSchedules = async ({ showId, excludeClosed = false, excludeR
   }));
 };
 
+export const autoClosePastSchedules = async () => {
+  const now = new Date();
+
+  const result = await prisma.showschedules.updateMany({
+    where: {
+      isOpen: true,
+      datetime: {
+        lt: now,
+      },
+    },
+    data: {
+      isOpen: false,
+    },
+  });
+
+  console.log(`Closed ${result.count} past schedules.`);
+};
+
 export const getScheduleDetails = async (scheduleId) => {
   const schedule = await prisma.showschedules.findUnique({
     where: { scheduleId },

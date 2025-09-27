@@ -1,7 +1,7 @@
 import { AppError } from "../middleware/errorHandler.middleware.js";
 import prisma from "../utils/primsa.connection.js";
 import crypto from "crypto";
-import { getIO } from "../utils/socketInstance.js";
+import { pusher } from "../utils/pusher.instance.js";
 
 export const createNotification = async ({ senderId, title, message, metaData = {}, recipientIds, type }) => {
   if (!recipientIds || recipientIds.length === 0) {
@@ -39,18 +39,16 @@ export const createNotification = async ({ senderId, title, message, metaData = 
   recipientIds.forEach((uid) => {
     if (uid === senderId) return;
 
-    getIO()
-      .to(`user:${uid}`)
-      .emit("notification:new", {
-        notificationId: deliveryMap[uid],
-        title,
-        type,
-        message,
-        metaData,
-        readAt: null,
-        sentAt: notification.sentAt,
-        sender: `${notification.users_notifications_senderIdTousers.firstName} ${notification.users_notifications_senderIdTousers.lastName}`,
-      });
+    pusher.trigger(`user-${uid}`, "notification:new", {
+      notificationId: deliveryMap[uid],
+      title,
+      type,
+      message,
+      metaData,
+      readAt: null,
+      sentAt: notification.sentAt,
+      sender: `${notification.users_notifications_senderIdTousers.firstName} ${notification.users_notifications_senderIdTousers.lastName}`,
+    });
   });
 
   return notification;

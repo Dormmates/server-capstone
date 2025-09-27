@@ -250,7 +250,6 @@ export const getDistributorShowsAndTicketsAllocated = async ({ distributorId }) 
       distributorId,
       showschedules: {
         isOpen: true,
-        isArchived: false,
         shows: {
           isArchived: false,
         },
@@ -309,7 +308,7 @@ export const getDistributorShowsAndTicketsAllocated = async ({ distributorId }) 
     return {
       scheduleId: ticket.showschedules?.scheduleId ?? null,
       datetime: ticket.showschedules?.datetime ?? null,
-      commissionFee: ticket.showschedules?.ticketPricing.commisionFee ?? null,
+      commissionFee: ticket.showschedules?.ticketpricing.commisionFee ?? null,
       seatingType: ticket.showschedules?.seatingType ?? null,
       show: ticket.showschedules?.shows ?? null,
       ticketId: ticket.ticketId,
