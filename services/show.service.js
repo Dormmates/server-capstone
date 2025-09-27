@@ -230,12 +230,20 @@ export const generateSalesReport = async (showId, scheduleIds) => {
               showseats: true,
             },
           },
+          ticketpricing: true,
         },
       },
     },
   });
 
   if (!show) throw new AppError("Show not found");
+
+  const toNumber = (val) => {
+    if (val === null || val === undefined) return 0;
+    return Number(val.toString());
+  };
+
+  const controlledSections = ["orchestraLeft", "orchestraMiddle", "orchestraRight", "balconyLeft", "balconyMiddle", "balconyRight"];
 
   const report = {
     showId: show.showId,
@@ -249,15 +257,17 @@ export const generateSalesReport = async (showId, scheduleIds) => {
       ticketSales: 0,
       totalCommission: 0,
       netSales: 0,
-      discountBreakdown: {},
     },
   };
 
   for (const schedule of show.showschedules) {
+    const tickets = schedule.ticket ?? [];
+    const commissionFeePct = schedule.ticketpricing ? toNumber(schedule.ticketpricing.commisionFee) : 0;
+    const { ticketPricing, ticket, ...rest } = schedule;
+
     const scheduleTotals = {
-      scheduleId: schedule.scheduleId,
-      datetime: schedule.datetime,
-      totalTickets: schedule.ticket.length,
+      schedule: rest,
+      totalTickets: tickets.length,
       soldTickets: 0,
       unsoldTickets: 0,
       totalDiscount: 0,
@@ -270,48 +280,72 @@ export const generateSalesReport = async (showId, scheduleIds) => {
 
     const sectionMap = new Map();
     const distributorsMap = new Map();
+    const scheduleControlNumbers = [];
 
-    for (const t of schedule.ticket) {
-      const seat = t.showseats[0]; // assuming 1 ticket -> 1 seat
-      const section = seat ? seat.seatSection : "General";
+    // Pre-populate sectionMap based on seating type
+    if (schedule.seatingType === "controlledSeating") {
+      for (const sec of controlledSections) {
+        sectionMap.set(sec, {
+          section: sec,
+          ticketsSold: 0,
+          totalTickets: 0,
+          totalSales: 0,
+          totalDiscount: 0,
+          totalCommission: 0,
+          discountBreakdown: {
+            ticketControlNumbers: [],
+            discountPercentage: 0,
+            totalAmount: 0,
+          },
+        });
+      }
+    } else {
+      sectionMap.set("General", {
+        section: "General",
+        ticketsSold: 0,
+        totalSales: 0,
+        totalTickets: 0,
+        totalDiscount: 0,
+        totalCommission: 0,
+        discountBreakdown: {
+          ticketControlNumbers: [],
+          discountPercentage: 0,
+          totalAmount: 0,
+        },
+      });
+    }
 
+    for (const t of tickets) {
+      const ticketPrice = toNumber(t.ticketPrice);
+      const discountPct = t.discountPercentage ? toNumber(t.discountPercentage) : 0;
+      const discountAmount = (ticketPrice * discountPct) / 100;
       const isSold = ["sold", "remitted", "lost"].includes(t.status);
-      const discount = t.discountPercentage ? t.ticketPrice * (t.discountPercentage / 100) : 0;
-      const netPrice = isSold ? t.ticketPrice - discount : 0;
-      const commission = schedule.commissionFee ? (schedule.commissionFee * netPrice) / 100 : 0;
+      const netPrice = isSold ? ticketPrice : 0;
+      const commissionAmount = isSold && commissionFeePct ? (commissionFeePct * netPrice) / 100 : 0;
+
+      const seat = t.showseats[0];
+      const section = schedule.seatingType === "controlledSeating" ? seat.seatSection : "General";
 
       if (isSold) {
         scheduleTotals.soldTickets += 1;
         scheduleTotals.ticketSales += netPrice;
-        scheduleTotals.totalDiscount += discount;
+        scheduleTotals.totalDiscount += discountAmount;
+        scheduleTotals.totalCommission += commissionAmount;
+        scheduleControlNumbers.push(t.controlNumber);
       }
 
       // Section breakdown
-      if (!sectionMap.has(section)) {
-        sectionMap.set(section, {
-          section,
-          ticketPrice: t.ticketPrice, // base price for this section
-          ticketsSold: 0,
-          totalSales: 0,
-          totalDiscount: 0,
-          discountBreakdown: {}, // discounted tickets by percentage
-        });
-      }
-
-      if (isSold) {
-        const sec = sectionMap.get(section);
+      const sec = sectionMap.get(section);
+      if (sec && isSold) {
         sec.ticketsSold += 1;
         sec.totalSales += netPrice;
-        sec.totalDiscount += discount;
-
-        // Track discount breakdown
-        if (t.discountPercentage) {
-          const pct = t.discountPercentage;
-          if (!sec.discountBreakdown[pct]) {
-            sec.discountBreakdown[pct] = { count: 0, totalAmount: 0 };
-          }
-          sec.discountBreakdown[pct].count += 1;
-          sec.discountBreakdown[pct].totalAmount += netPrice;
+        sec.totalTickets += 1;
+        sec.totalCommission += commissionAmount;
+        sec.totalDiscount += discountAmount;
+        if (discountPct > 0) {
+          sec.discountBreakdown.ticketControlNumbers.push(t.controlNumber);
+          sec.discountBreakdown.discountPercentage = discountPct;
+          sec.discountBreakdown.totalAmount += discountAmount;
         }
       }
 
@@ -328,22 +362,23 @@ export const generateSalesReport = async (showId, scheduleIds) => {
           totalCommission: 0,
         });
       }
+
       if (isSold) {
         const dist = distributorsMap.get(distributorId);
         dist.ticketsSold += 1;
         dist.totalAmountRemitted += netPrice;
-        dist.totalCommission += commission;
+        dist.totalCommission += commissionAmount;
       }
     }
 
     scheduleTotals.unsoldTickets = scheduleTotals.totalTickets - scheduleTotals.soldTickets;
-    scheduleTotals.netSales = scheduleTotals.ticketSales - scheduleTotals.totalCommission;
+    scheduleTotals.netSales = scheduleTotals.ticketSales - (scheduleTotals.totalCommission + scheduleTotals.totalDiscount);
     scheduleTotals.salesBySection = Array.from(sectionMap.values());
     scheduleTotals.salesByDistributor = Array.from(distributorsMap.values());
 
     report.schedules.push(scheduleTotals);
 
-    // Update overall totals
+    // Overall totals
     report.overallTotals.totalTickets += scheduleTotals.totalTickets;
     report.overallTotals.soldTickets += scheduleTotals.soldTickets;
     report.overallTotals.unsoldTickets += scheduleTotals.unsoldTickets;
@@ -351,17 +386,6 @@ export const generateSalesReport = async (showId, scheduleIds) => {
     report.overallTotals.ticketSales += scheduleTotals.ticketSales;
     report.overallTotals.totalCommission += scheduleTotals.totalCommission;
     report.overallTotals.netSales += scheduleTotals.netSales;
-
-    // Update overall discount breakdown
-    for (const section of scheduleTotals.salesBySection) {
-      for (const [pct, data] of Object.entries(section.discountBreakdown)) {
-        if (!report.overallTotals.discountBreakdown[pct]) {
-          report.overallTotals.discountBreakdown[pct] = { count: 0, totalAmount: 0 };
-        }
-        report.overallTotals.discountBreakdown[pct].count += data.count;
-        report.overallTotals.discountBreakdown[pct].totalAmount += data.totalAmount;
-      }
-    }
   }
 
   return report;

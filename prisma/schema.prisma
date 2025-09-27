@@ -109,27 +109,27 @@ model shows {
 }
 
 model showschedules {
-  scheduleId        String                    @id @db.VarChar(36)
-  showId            String                    @db.VarChar(36)
-  isOpen            Boolean?                  @default(true)
-  commissionFee     Decimal                   @db.Decimal(10, 2)
-  isArchived        Boolean?                  @default(false)
-  isRescheduled     Boolean?                  @default(false)
-  seatingType       showschedules_seatingType
-  ticketType        showschedules_ticketType
-  contactNumber     String?                   @db.VarChar(20)
-  facebookLink      String?                   @db.VarChar(255)
-  femaleCount       Int?                      @default(0)
-  maleCount         Int?                      @default(0)
-  datetime          DateTime                  @db.DateTime(0)
-  closedReservation Boolean?                  @default(false)
-  reservations      reservations[]
-  shows             shows                     @relation(fields: [showId], references: [showId], onDelete: Cascade, map: "showschedules_ibfk_1")
-  showseats         showseats[]
-  ticket            ticket[]
-  ticketactionlog   ticketactionlog[]
+  scheduleId      String                    @id @db.VarChar(36)
+  showId          String                    @db.VarChar(36)
+  isOpen          Boolean?                  @default(true)
+  isRescheduled   Boolean?                  @default(false)
+  seatingType     showschedules_seatingType
+  ticketType      showschedules_ticketType
+  contactNumber   String?                   @db.VarChar(20)
+  facebookLink    String?                   @db.VarChar(255)
+  femaleCount     Int?                      @default(0)
+  maleCount       Int?                      @default(0)
+  datetime        DateTime                  @db.DateTime(0)
+  ticketPricing   String                    @db.VarChar(36)
+  reservations    reservations[]
+  ticketpricing   ticketpricing             @relation(fields: [ticketPricing], references: [id], onUpdate: Restrict, map: "fk_showschedules_ticketpricing")
+  shows           shows                     @relation(fields: [showId], references: [showId], onDelete: Cascade, map: "showschedules_ibfk_1")
+  showseats       showseats[]
+  ticket          ticket[]
+  ticketactionlog ticketactionlog[]
 
   @@index([showId], map: "showschedules_ibfk_1")
+  @@index([ticketPricing], map: "fk_showschedules_ticketpricing")
 }
 
 model showseats {
@@ -258,6 +258,7 @@ model ticketpricing {
   commisionFee  Decimal            @db.Decimal(10, 2)
   sectionPrices Json?
   type          ticketpricing_type
+  showschedules showschedules[]
 }
 
 enum shows_showType {

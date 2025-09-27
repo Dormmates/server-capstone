@@ -9,7 +9,7 @@ export const addShowSchedule = async ({
   ticketType,
   contactNumber = null,
   facebookLink = null,
-  commissionFee = 0,
+  ticketPricing,
   tx = prisma,
 }) => {
   const now = new Date();
@@ -35,7 +35,7 @@ export const addShowSchedule = async ({
     scheduleId: crypto.randomUUID(),
     showId,
     datetime,
-    commissionFee,
+    ticketPricing: ticketPricing.id,
     seatingType,
     ticketType,
     contactNumber,
@@ -160,7 +160,15 @@ export const reschedule = async ({ scheduleId, newDateTime }) => {
   });
 };
 
-export const generateScheduleTicketsAndSeats = async ({ tx, scheduleId, seatPricing, seats, ticketPrice, controlNumbers, seatingConfiguration }) => {
+export const generateScheduleTicketsAndSeats = async ({
+  tx,
+  scheduleId,
+  seatPricing,
+  seats,
+  ticketPricing,
+  controlNumbers,
+  seatingConfiguration,
+}) => {
   const tickets = [];
   const seatsData = [];
 
@@ -172,7 +180,7 @@ export const generateScheduleTicketsAndSeats = async ({ tx, scheduleId, seatPric
   const isFixedPrice = seatPricing === "fixed";
 
   const createTicketAndLinkSeat = (num, ticketSection, complimentaryTicket = false) => {
-    let price = ticketPrice;
+    let price = ticketPricing.fixedPrice;
     let seat = null;
 
     if (isControlled) {
@@ -225,22 +233,55 @@ export const generateScheduleTicketsAndSeats = async ({ tx, scheduleId, seatPric
 };
 
 export const getShowSchedules = async ({ showId, excludeClosed = false, excludeReservationOff = false }) => {
-  return await prisma.showschedules.findMany({
+  const schedules = await prisma.showschedules.findMany({
     where: {
       showId,
       ...(excludeClosed && { isOpen: true }),
       ...(excludeReservationOff && { closedReservation: false }),
     },
+    include: {
+      ticketpricing: true,
+    },
     orderBy: { datetime: "asc" },
   });
+
+  return schedules.map((schedule) => ({
+    ...schedule,
+    ticketPricing: schedule.ticketpricing,
+  }));
 };
 
 export const getScheduleDetails = async (scheduleId) => {
-  return await prisma.showschedules.findUnique({ where: { scheduleId } });
+  const schedule = await prisma.showschedules.findUnique({
+    where: { scheduleId },
+    include: {
+      ticketpricing: true,
+    },
+  });
+
+  const { ticketpricing, ...rest } = schedule;
+
+  let ticketPricing = null;
+
+  if (ticketpricing) {
+    ticketPricing = {
+      ...ticketpricing,
+      fixedPrice: ticketpricing.fixedPrice ? Number(ticketpricing.fixedPrice) : null,
+      commisionFee: ticketpricing.commisionFee ? Number(ticketpricing.commisionFee) : 0,
+      sectionPrices: ticketpricing.sectionPrices
+        ? Object.fromEntries(Object.entries(ticketpricing.sectionPrices).map(([k, v]) => [k, Number(v)]))
+        : null,
+    };
+  }
+
+  return {
+    ...rest,
+    ticketPricing,
+  };
 };
 
 export const getScheduleSummary = async (scheduleId) => {
-  const schedule = await prisma.showschedules.findUnique({ where: { scheduleId } });
+  const schedule = await prisma.showschedules.findUnique({ where: { scheduleId }, include: { ticketpricing: true } });
 
   if (!schedule) {
     throw new AppError("Schedule Not Found");
@@ -296,9 +337,8 @@ export const getScheduleSummary = async (scheduleId) => {
       const unsoldTickets = totalAllocatedTickets - soldTickets;
       const pendingRemittance = soldTickets - remittedTickets;
 
-      const expected = data.reduce((acc, t) => acc + (Number(t.ticketPrice) - schedule.commissionFee), 0);
-
-      const remitted = data.filter((t) => t.isRemitted).reduce((acc, t) => acc + (Number(t.ticketPrice) - schedule.commissionFee), 0);
+      const expected = data.reduce((acc, t) => acc + (Number(t.ticketPrice) - schedule.ticketpricing.commisionFee), 0);
+      const remitted = data.filter((t) => t.isRemitted).reduce((acc, t) => acc + (Number(t.ticketPrice) - schedule.ticketpricing.commisionFee), 0);
 
       const balanceDue = expected - remitted;
 
@@ -376,8 +416,8 @@ export const getScheduleSummary = async (scheduleId) => {
   const grossCurrent = currentAgg._sum.ticketPrice || 0;
 
   // commission totals
-  const commissionExpected = schedule.commissionFee * (balconyTickets.total + orchestraTickets.total);
-  const commissionCurrent = schedule.commissionFee * (balconyTickets.sold + orchestraTickets.sold);
+  const commissionExpected = schedule.ticketpricing.commisionFee * (balconyTickets.total + orchestraTickets.total);
+  const commissionCurrent = schedule.ticketpricing.commisionFee * (balconyTickets.sold + orchestraTickets.sold);
 
   // net values
   const expectedSales = grossExpected - commissionExpected;
@@ -546,7 +586,6 @@ export const allocateTicket = async ({ scheduleId, distributorId, allocatedBy, c
     const distributor = await prisma.users.findFirst({
       where: {
         userId: distributorId,
-        isArchived: false,
         isLocked: false,
       },
       include: {
@@ -563,7 +602,6 @@ export const allocateTicket = async ({ scheduleId, distributorId, allocatedBy, c
       where: {
         scheduleId,
         isOpen: true,
-        isArchived: false,
       },
     });
 

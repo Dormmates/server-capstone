@@ -91,7 +91,11 @@ export const getDistributorRemittanceHistory = async ({ distributorId, scheduleI
         select: {
           datetime: true,
           seatingType: true,
-          commissionFee: true,
+          ticketpricing: {
+            select: {
+              commisionFee: true,
+            },
+          },
           shows: {
             select: {
               showCover: true,
@@ -134,7 +138,7 @@ export const getDistributorRemittanceHistory = async ({ distributorId, scheduleI
       seatSection: rt.ticket.showseats[0]?.seatSection ?? null,
     }));
 
-    const commissionFee = Number(log.showschedules.commissionFee || 0);
+    const commissionFee = Number(log.showschedules.ticketpricing.commisionFee || 0);
     const totalCommission = tickets.length * commissionFee;
 
     const totalRemittance = tickets.reduce((acc, t) => {
@@ -264,7 +268,11 @@ export const getDistributorShowsAndTicketsAllocated = async ({ distributorId }) 
       showschedules: {
         select: {
           datetime: true,
-          commissionFee: true,
+          ticketpricing: {
+            select: {
+              commisionFee: true,
+            },
+          },
           scheduleId: true,
           seatingType: true,
           shows: {
@@ -301,7 +309,7 @@ export const getDistributorShowsAndTicketsAllocated = async ({ distributorId }) 
     return {
       scheduleId: ticket.showschedules?.scheduleId ?? null,
       datetime: ticket.showschedules?.datetime ?? null,
-      commissionFee: ticket.showschedules?.commissionFee ?? null,
+      commissionFee: ticket.showschedules?.ticketPricing.commisionFee ?? null,
       seatingType: ticket.showschedules?.seatingType ?? null,
       show: ticket.showschedules?.shows ?? null,
       ticketId: ticket.ticketId,

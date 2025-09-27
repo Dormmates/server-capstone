@@ -4,8 +4,8 @@ export const newFixedPricing = async ({ name, fixedPrice, commissionFee }) => {
   return await prisma.ticketpricing.create({
     data: {
       priceName: name,
-      fixedPrice,
-      commisionFee: commissionFee,
+      fixedPrice: Number(fixedPrice),
+      commisionFee: Number(commissionFee),
       type: "fixed",
       id: crypto.randomUUID(),
     },
@@ -13,12 +13,14 @@ export const newFixedPricing = async ({ name, fixedPrice, commissionFee }) => {
 };
 
 export const newSectionedPricing = async ({ name, sectionedPricing, commissionFee }) => {
+  const numericSectionPrices = Object.fromEntries(Object.entries(sectionedPricing).map(([key, value]) => [key, Number(value)]));
+
   return await prisma.ticketpricing.create({
     data: {
-      priceName: name,
-      sectionPrices: sectionedPricing,
-      commisionFee: commissionFee,
       id: crypto.randomUUID(),
+      priceName: name,
+      sectionPrices: numericSectionPrices,
+      commisionFee: commissionFee,
       type: "sectioned",
     },
   });
@@ -33,7 +35,7 @@ export const updatSectionedPricing = async ({ priceId, name, sectionedPricing, c
     data: {
       priceName: name,
       sectionPrices: sectionedPricing,
-      commisionFee: commissionFee,
+      commisionFee: Number(commissionFee),
     },
   });
 };
@@ -47,7 +49,7 @@ export const updatFixedPricing = async ({ priceId, name, fixedPrice, commissionF
     data: {
       priceName: name,
       fixedPrice,
-      commisionFee: commissionFee,
+      commisionFee: Number(commissionFee),
     },
   });
 };

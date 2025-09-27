@@ -50,10 +50,7 @@ export const addShowScheduleController = asyncHandler(async (req, res) => {
 
   switch (ticketType) {
     case "ticketed": {
-      const { commissionFee, contactNumber, facebookLink, controlNumbers, seatPricing, seats, ticketPrice } = req.body;
-
-      console.log(ticketPrice);
-      console.log(seatPricing);
+      const { ticketPricing, contactNumber, facebookLink, controlNumbers, seatPricing, seats } = req.body;
 
       const formattedDates = convertDates(dates);
 
@@ -63,7 +60,7 @@ export const addShowScheduleController = asyncHandler(async (req, res) => {
           showId,
           seatingType: seatingConfiguration,
           ticketType,
-          commissionFee,
+          ticketPricing,
           contactNumber,
           facebookLink,
           tx,
@@ -75,7 +72,7 @@ export const addShowScheduleController = asyncHandler(async (req, res) => {
             scheduleId: sched.scheduleId,
             seatPricing,
             seats,
-            ticketPrice,
+            ticketPricing,
             controlNumbers,
             seatingConfiguration,
           });
@@ -155,6 +152,7 @@ export const getScheduleInfoController = asyncHandler(async (req, res, next) => 
   }
 
   const details = await getScheduleDetails(scheduleId);
+
   res.json(details);
 });
 
