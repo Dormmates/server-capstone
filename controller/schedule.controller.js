@@ -12,6 +12,7 @@ import {
   addTallyData,
   allocateTicket,
   closeSchedule,
+  copySchedule,
   deleteSchedule,
   generateScheduleTicketsAndSeats,
   getScheduleDetails,
@@ -119,7 +120,7 @@ export const openScheduleController = asyncHandler(async (req, res, next) => {
   }
 
   await openSchedule(scheduleId);
-  res.json({ message: "Closed Schedule" });
+  res.json({ message: "Opened Schedule" });
 });
 
 export const deleteScheduleController = asyncHandler(async (req, res, next) => {
@@ -141,7 +142,18 @@ export const rescheduleController = asyncHandler(async (req, res, next) => {
   }
 
   await reschedule({ scheduleId, newDateTime });
-  res.json({ message: "Closed Schedule" });
+  res.json({ message: "ReSchedule" });
+});
+
+export const copyScheduleController = asyncHandler(async (req, res, next) => {
+  const { scheduleId, newDateTime } = req.body;
+
+  if (!scheduleId || !newDateTime) {
+    throw new AppError("Missing Post Fields", HttpStatusCodes.BadRequest);
+  }
+
+  const copiedSchedule = await copySchedule({ scheduleId, newDateTime });
+  res.json(copiedSchedule);
 });
 
 export const getScheduleInfoController = asyncHandler(async (req, res, next) => {

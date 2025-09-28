@@ -120,9 +120,9 @@ model showschedules {
   femaleCount     Int?                      @default(0)
   maleCount       Int?                      @default(0)
   datetime        DateTime                  @db.DateTime(0)
-  ticketPricing   String                    @db.VarChar(36)
+  ticketPricing   String?                    @db.VarChar(36)
   reservations    reservations[]
-  ticketpricing   ticketpricing             @relation(fields: [ticketPricing], references: [id], onUpdate: Restrict, map: "fk_showschedules_ticketpricing")
+  ticketpricing   ticketpricing?             @relation(fields: [ticketPricing], references: [id], onUpdate: Restrict, map: "fk_showschedules_ticketpricing")
   shows           shows                     @relation(fields: [showId], references: [showId], onDelete: Cascade, map: "showschedules_ibfk_1")
   showseats       showseats[]
   ticket          ticket[]

@@ -1,6 +1,12 @@
 import { AppError, HttpStatusCodes } from "../middleware/errorHandler.middleware.js";
 import prisma from "../utils/primsa.connection.js";
 import { getDistributorAllocatedTickets } from "./distributorTickets.service.js";
+import dayjs from "dayjs";
+import utc from "dayjs/plugin/utc.js";
+import timezone from "dayjs/plugin/timezone.js";
+
+dayjs.extend(utc);
+dayjs.extend(timezone);
 
 export const addShowSchedule = async ({
   dates = [],
@@ -9,23 +15,14 @@ export const addShowSchedule = async ({
   ticketType,
   contactNumber = null,
   facebookLink = null,
-  ticketPricing,
+  ticketPricing = null,
   tx = prisma,
 }) => {
-  const now = new Date();
-  const nowPH = new Date(now.getTime() + (8 * 60 - now.getTimezoneOffset()) * 60000);
+  const nowPH = dayjs().tz("Asia/Manila");
 
   const invalidDates = dates
-    .filter(({ datetime }) => {
-      const dt = new Date(datetime);
-      const dtPH = new Date(dt.getTime() + (8 * 60 - dt.getTimezoneOffset()) * 60000);
-      return dtPH < nowPH;
-    })
-    .map(({ datetime }) => {
-      const dt = new Date(datetime);
-      const dtPH = new Date(dt.getTime() + (8 * 60 - dt.getTimezoneOffset()) * 60000);
-      return dtPH.toISOString().replace("T", " ").slice(0, 16);
-    });
+    .filter(({ datetime }) => dayjs(datetime).tz("Asia/Manila").isBefore(nowPH))
+    .map(({ datetime }) => dayjs(datetime).tz("Asia/Manila").format("YYYY-MM-DD HH:mm A"));
 
   if (invalidDates.length > 0) {
     throw new AppError(`Cannot add schedules in the past (PH time): ${invalidDates.join(", ")}`, HttpStatusCodes.BadRequest);
@@ -35,7 +32,7 @@ export const addShowSchedule = async ({
     scheduleId: crypto.randomUUID(),
     showId,
     datetime,
-    ticketPricing: ticketPricing.id,
+    ticketPricing: ticketPricing ? ticketPricing.id : null,
     seatingType,
     ticketType,
     contactNumber,
@@ -44,7 +41,6 @@ export const addShowSchedule = async ({
 
   const conflicts = await tx.showschedules.findMany({
     where: {
-      showId,
       datetime: {
         in: schedules.map((s) => s.datetime),
       },
@@ -52,11 +48,7 @@ export const addShowSchedule = async ({
   });
 
   if (conflicts.length > 0) {
-    const conflictDetails = conflicts.map((s) => {
-      const dt = new Date(s.datetime);
-      const dtPH = new Date(dt.getTime() + (8 * 60 - dt.getTimezoneOffset()) * 60000);
-      return dtPH.toISOString().replace("T", " ").slice(0, 16);
-    });
+    const conflictDetails = conflicts.map((s) => dayjs(s.datetime).tz("Asia/Manila").format("YYYY-MM-DD HH:mm A"));
     throw new AppError(`Conflicting schedules already exist for: ${conflictDetails.join(", ")}`, HttpStatusCodes.Conflict);
   }
 
@@ -89,13 +81,23 @@ export const closeSchedule = async (scheduleId) => {
 export const openSchedule = async (scheduleId) => {
   const schedule = await prisma.showschedules.findUnique({
     where: { scheduleId },
-    select: { isOpen: true },
+    select: { isOpen: true, datetime: true },
   });
 
   if (!schedule) {
     throw new AppError("Schedule not found", HttpStatusCodes.NotFound);
   }
-  return await prisma.showschedules.update({ where: { scheduleId }, data: { isOpen: true } });
+
+  const nowPH = dayjs().tz("Asia/Manila");
+
+  if (dayjs(schedule.datetime).tz("Asia/Manila").isBefore(nowPH)) {
+    throw new AppError("Cannot open a schedule that is already in the past", HttpStatusCodes.BadRequest);
+  }
+
+  return await prisma.showschedules.update({
+    where: { scheduleId },
+    data: { isOpen: true },
+  });
 };
 
 export const deleteSchedule = async (scheduleId) => {
@@ -108,9 +110,9 @@ export const deleteSchedule = async (scheduleId) => {
     throw new AppError("Schedule not found", HttpStatusCodes.NotFound);
   }
 
-  if (schedule.isOpen) {
-    throw new AppError("Cannot delete an open schedule", HttpStatusCodes.BadRequest);
-  }
+  // if (schedule.isOpen) {
+  //   throw new AppError("Cannot delete an open schedule", HttpStatusCodes.BadRequest);
+  // }
 
   return await prisma.showschedules.delete({ where: { scheduleId } });
 };
@@ -129,34 +131,112 @@ export const reschedule = async ({ scheduleId, newDateTime }) => {
     throw new AppError("Cannot reschedule a closed schedule", HttpStatusCodes.BadRequest);
   }
 
-  const now = new Date();
-  const nowPH = new Date(now.getTime() + (8 * 60 - now.getTimezoneOffset()) * 60000);
+  const nowPH = dayjs().tz("Asia/Manila");
+  const newDatePH = dayjs(newDateTime).tz("Asia/Manila");
 
-  const newDatePH = new Date(new Date(newDateTime).getTime() + (8 * 60 - new Date(newDateTime).getTimezoneOffset()) * 60000);
-
-  if (newDatePH < nowPH) {
-    throw new AppError(
-      `Cannot reschedule to a past date/time (PH time): ${newDatePH.toISOString().replace("T", " ").slice(0, 16)}`,
-      HttpStatusCodes.BadRequest
-    );
+  if (newDatePH.isBefore(nowPH)) {
+    throw new AppError(`Cannot reschedule to a past date/time (PH time): ${newDatePH.format("YYYY-MM-DD HH:mm A")}`, HttpStatusCodes.BadRequest);
   }
 
   const conflicts = await prisma.showschedules.findMany({
     where: {
-      showId: schedule.showId,
       datetime: newDateTime,
       NOT: { scheduleId },
     },
   });
 
   if (conflicts.length > 0) {
-    const conflictDetails = conflicts.map((s) => new Date(s.datetime).toISOString().replace("T", " ").slice(0, 16));
+    const conflictDetails = conflicts.map((s) => dayjs(s.datetime).tz("Asia/Manila").format("YYYY-MM-DD HH:mm A"));
     throw new AppError(`Conflicting schedules already exist for: ${conflictDetails.join(", ")}`, HttpStatusCodes.Conflict);
   }
 
   return await prisma.showschedules.update({
     where: { scheduleId },
     data: { datetime: newDateTime },
+  });
+};
+
+export const copySchedule = async ({ scheduleId, newDateTime }) => {
+  const nowPH = dayjs().tz("Asia/Manila");
+  const newDatePH = dayjs(newDateTime).tz("Asia/Manila");
+
+  if (newDatePH.isBefore(nowPH)) {
+    throw new AppError(`Cannot copy schedule to a past date/time (PH time): ${newDatePH.format("YYYY-MM-DD hh:mm A")}`, HttpStatusCodes.BadRequest);
+  }
+
+  const existingSchedule = await prisma.showschedules.findUnique({
+    where: { scheduleId },
+    include: {
+      ticket: true,
+      showseats: {
+        include: {
+          ticket: {
+            select: {
+              controlNumber: true,
+            },
+          },
+        },
+      },
+      ticketpricing: true,
+    },
+  });
+
+  if (!existingSchedule) {
+    throw new AppError("Schedule not found", HttpStatusCodes.NotFound);
+  }
+
+  const conflicts = await prisma.showschedules.findMany({
+    where: {
+      datetime: newDateTime,
+      NOT: { scheduleId },
+    },
+  });
+
+  if (conflicts.length > 0) {
+    const conflictDetails = conflicts.map((s) => dayjs(s.datetime).tz("Asia/Manila").format("YYYY-MM-DD HH:mm A"));
+    throw new AppError(`Conflicting schedules already exist for: ${conflictDetails.join(", ")}`, HttpStatusCodes.Conflict);
+  }
+
+  return await prisma.$transaction(async (tx) => {
+    // Create new schedule
+    const newSchedule = await tx.showschedules.create({
+      data: {
+        datetime: newDatePH,
+        showId: existingSchedule.showId,
+        seatingType: existingSchedule.seatingType,
+        scheduleId: crypto.randomUUID(),
+        ticketType: existingSchedule.ticketType,
+        ticketPricing: existingSchedule.ticketPricing,
+      },
+    });
+
+    if (existingSchedule.ticketType === "ticketed") {
+      const orchestraControlNumbers = existingSchedule.ticket.filter((t) => t.ticketSection === "orchestra").map((t) => t.controlNumber);
+      const balconyControlNumbers = existingSchedule.ticket.filter((t) => t.ticketSection === "balcony").map((t) => t.controlNumber);
+      const complimentaryControlNumbers = existingSchedule.ticket.filter((t) => t.isComplimentary).map((t) => t.controlNumber);
+
+      await generateScheduleTicketsAndSeats({
+        tx,
+        scheduleId: newSchedule.scheduleId,
+        ticketPricing: existingSchedule.ticketpricing,
+        seatPricing: existingSchedule.ticketpricing.type || "fixed",
+        controlNumbers: {
+          orchestra: orchestraControlNumbers,
+          balcony: balconyControlNumbers,
+          complimentary: complimentaryControlNumbers,
+        },
+        seatingConfiguration: existingSchedule.seatingType,
+        seats: existingSchedule.showseats
+          ? existingSchedule.showseats.map((seat) => ({
+              ...seat,
+              section: seat.seatSection,
+              ticketControlNumber: seat.ticket ? seat.ticket.controlNumber : 0,
+            }))
+          : [],
+      });
+    }
+
+    return { ...newSchedule, ticketPricing: existingSchedule.ticketpricing };
   });
 };
 

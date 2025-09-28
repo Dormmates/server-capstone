@@ -266,7 +266,7 @@ export const generateSalesReport = async (showId, scheduleIds) => {
     const { ticketPricing, ticket, ...rest } = schedule;
 
     const scheduleTotals = {
-      schedule: rest,
+      schedule: { ...rest, ticketPricing: rest.ticketpricing },
       totalTickets: tickets.length,
       soldTickets: 0,
       unsoldTickets: 0,
@@ -347,7 +347,12 @@ export const generateSalesReport = async (showId, scheduleIds) => {
           sec.discountBreakdown.discountPercentage = discountPct;
           sec.discountBreakdown.totalAmount += discountAmount;
         }
+      } else {
+        sec.totalTickets += 1;
       }
+
+      //skip if no distributor
+      if (!t.users) continue;
 
       // Distributor breakdown
       const distributorId = t.users ? t.users.userId : "online";

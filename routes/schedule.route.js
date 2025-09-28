@@ -3,6 +3,7 @@ import {
   addShowScheduleController,
   allocateTicketController,
   closeScheduleController,
+  copyScheduleController,
   deleteScheduleController,
   getAllDistributorAllocationHistoryController,
   getAllDistributorRemittanceHistoryController,
@@ -37,6 +38,7 @@ router.post("/closeSchedule", verifyAuth, requireRole("head", "trainer"), closeS
 router.post("/openSchedule", verifyAuth, requireRole("head", "trainer"), openScheduleController);
 router.post("/deleteSchedule", verifyAuth, requireRole("head", "trainer"), deleteScheduleController);
 router.post("/reschedule", verifyAuth, requireRole("head", "trainer"), rescheduleController);
+router.post("/copy", verifyAuth, requireRole("head", "trainer"), copyScheduleController);
 
 router.get("/summary/:scheduleId", getScheudleSummaryController);
 router.get("/tickets/:scheduleId", getScheduleTicketsController);
