@@ -15,5 +15,11 @@
   "github": {
     "enabled": true
   },
-  "buildCommand": "npm install && prisma generate"
+  "buildCommand": "npm install && prisma generate",
+  "crons": [
+    {
+      "path": "/api/cron/auto-close-schedules",
+      "schedule": "0 * * * *"
+    }
+  ]
 }
