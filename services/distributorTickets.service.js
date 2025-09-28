@@ -100,6 +100,7 @@ export const getDistributorRemittanceHistory = async ({ distributorId, scheduleI
             select: {
               showCover: true,
               title: true,
+              showId: true,
             },
           },
         },
@@ -147,6 +148,7 @@ export const getDistributorRemittanceHistory = async ({ distributorId, scheduleI
     }, 0);
 
     return {
+      showId: log.showschedules.shows.showId,
       seatingType: log.showschedules.seatingType,
       showCover: log.showschedules.shows.showCover,
       showTitle: log.showschedules.shows.title,
@@ -184,6 +186,7 @@ export const getDistributorAllocationHistory = async ({ distributorId, scheduleI
           datetime: true,
           shows: {
             select: {
+              showId: true,
               showCover: true,
               title: true,
             },
@@ -224,6 +227,7 @@ export const getDistributorAllocationHistory = async ({ distributorId, scheduleI
   });
 
   const grouped = allocationHistory.map((log) => ({
+    showId: log.showschedules.shows.showId,
     showCover: log.showschedules.shows.showCover,
     showTitle: log.showschedules.shows.title,
     showDate: log.showschedules.datetime,
