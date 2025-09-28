@@ -19,7 +19,7 @@
   "crons": [
     {
       "path": "/api/cron/auto-close-schedules",
-      "schedule": "0 * * * *"
+      "schedule": "59 15 * * *"
     }
   ]
 }
