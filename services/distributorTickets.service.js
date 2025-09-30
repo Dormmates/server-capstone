@@ -252,6 +252,7 @@ export const markTicketAsSold = async ({ distributorId, scheduleId, controlNumbe
     if (!ticketsToUpdate.length) throw new AppError("No tickets found to mark as sold");
 
     const updateData = { status: "sold" };
+
     if (isIncluded) {
       updateData.customerName = customerName;
       updateData.customerEmail = email;
@@ -262,7 +263,7 @@ export const markTicketAsSold = async ({ distributorId, scheduleId, controlNumbe
       data: updateData,
     });
 
-    await tx.seats.updateMany({
+    await tx.showSeat.updateMany({
       where: { scheduleId, ticketId: { in: ticketsToUpdate.map((t) => t.ticketId) } },
       data: { status: "sold" },
     });
@@ -284,7 +285,7 @@ export const markTicketAsUnSold = async ({ distributorId, scheduleId, controlNum
       data: { status: "allocated", customerEmail: null, customerName: null },
     });
 
-    await tx.seats.updateMany({
+    await tx.showSeat.updateMany({
       where: { scheduleId, ticketId: { in: ticketsToUpdate.map((t) => t.ticketId) } },
       data: { status: "reserved" },
     });

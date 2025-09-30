@@ -317,7 +317,6 @@ export const getShowSchedules = async ({ showId, excludeClosed = false, excludeR
     where: {
       showId,
       ...(excludeClosed && { isOpen: true }),
-      ...(excludeReservationOff && { closedReservation: false }),
     },
     include: {
       ticketPricing: true,
