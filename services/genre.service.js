@@ -2,34 +2,34 @@ import { AppError, HttpStatusCodes } from "../middleware/errorHandler.middleware
 import prisma from "../utils/primsa.connection.js";
 
 export const getGenres = () => {
-  return prisma.genre.findMany();
+  return prisma.genre.findMany({
+    orderBy: { name: "asc" },
+  });
 };
 
 export const getGenresWithShowCount = async () => {
   const result = await prisma.genre.findMany({
     include: {
       _count: {
-        select: { showgenre_showgenre_genreTogenre: true },
+        select: { showGenres: true },
       },
     },
-    orderBy: {
-      name: "asc",
-    },
+    orderBy: { name: "asc" },
   });
 
   return result.map((g) => ({
     genre: g.name,
-    showCount: g._count.showgenre_showgenre_genreTogenre,
+    showCount: g._count.showGenres,
   }));
 };
 
 export const deleteGenre = async (genreName) => {
-  const count = await prisma.showgenre.count({
+  const linkedShowsCount = await prisma.showGenre.count({
     where: { genre: genreName },
   });
 
-  if (count > 0) {
-    throw new AppError("Cannot delete a Genre that is linked to a show", HttpStatusCodes.Forbidden);
+  if (linkedShowsCount > 0) {
+    throw new AppError("Cannot delete a genre that is linked to a show", HttpStatusCodes.Forbidden);
   }
 
   return prisma.genre.delete({
@@ -41,22 +41,21 @@ export const addGenre = async (genreName) => {
   const exists = await prisma.genre.findUnique({ where: { name: genreName } });
 
   if (exists) {
-    throw new AppError("This genere name already exists", HttpStatusCodes.Forbidden);
+    throw new AppError("This genre name already exists", HttpStatusCodes.Forbidden);
   }
 
-  return await prisma.genre.create({
-    data: {
-      name: genreName,
-    },
-  });
+  return prisma.genre.create({ data: { name: genreName } });
 };
 
 export const updateGenreName = async ({ oldGenre, newGenre }) => {
   const exists = await prisma.genre.findUnique({ where: { name: newGenre } });
 
   if (exists) {
-    throw new AppError("This genere name already exists", HttpStatusCodes.Forbidden);
+    throw new AppError("This genre name already exists", HttpStatusCodes.Forbidden);
   }
 
-  return await prisma.genre.update({ where: { name: oldGenre }, data: { name: newGenre } });
+  return prisma.genre.update({
+    where: { name: oldGenre },
+    data: { name: newGenre },
+  });
 };

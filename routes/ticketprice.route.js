@@ -12,7 +12,7 @@ import {
 export const router = express.Router();
 
 router.post("/", verifyAuth, requireRole("head"), addTicketPricingController);
-router.get("/", verifyAuth, requireRole("head"), getTicketPricesController);
+router.get("/", getTicketPricesController);
 
 router.patch("/fixed", verifyAuth, requireRole("head"), updateFixedPricingController);
 router.patch("/sectioned", verifyAuth, requireRole("head"), updateSectionPricingController);

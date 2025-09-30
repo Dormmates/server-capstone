@@ -32,14 +32,14 @@ export const addShowSchedule = async ({
     scheduleId: crypto.randomUUID(),
     showId,
     datetime,
-    ticketPricing: ticketPricing ? ticketPricing.id : null,
+    ticketPricingId: ticketPricing ? ticketPricing.id : null,
     seatingType,
     ticketType,
     contactNumber,
     facebookLink,
   }));
 
-  const conflicts = await tx.showschedules.findMany({
+  const conflicts = await tx.showSchedule.findMany({
     where: {
       datetime: {
         in: schedules.map((s) => s.datetime),
@@ -52,7 +52,7 @@ export const addShowSchedule = async ({
     throw new AppError(`Conflicting schedules already exist for: ${conflictDetails.join(", ")}`, HttpStatusCodes.Conflict);
   }
 
-  await tx.showschedules.createMany({
+  await tx.showSchedule.createMany({
     data: schedules,
   });
 
@@ -63,11 +63,11 @@ export const addShowSchedule = async ({
 };
 
 export const getSchedule = async (scheduleId) => {
-  return await prisma.showschedules.findUnique({ where: { scheduleId } });
+  return await prisma.showSchedule.findUnique({ where: { scheduleId } });
 };
 
 export const closeSchedule = async (scheduleId) => {
-  const schedule = await prisma.showschedules.findUnique({
+  const schedule = await prisma.showSchedule.findUnique({
     where: { scheduleId },
     select: { isOpen: true },
   });
@@ -75,11 +75,11 @@ export const closeSchedule = async (scheduleId) => {
   if (!schedule) {
     throw new AppError("Schedule not found", HttpStatusCodes.NotFound);
   }
-  return await prisma.showschedules.update({ where: { scheduleId }, data: { isOpen: false } });
+  return await prisma.showSchedule.update({ where: { scheduleId }, data: { isOpen: false } });
 };
 
 export const openSchedule = async (scheduleId) => {
-  const schedule = await prisma.showschedules.findUnique({
+  const schedule = await prisma.showSchedule.findUnique({
     where: { scheduleId },
     select: { isOpen: true, datetime: true },
   });
@@ -94,14 +94,14 @@ export const openSchedule = async (scheduleId) => {
     throw new AppError("Cannot open a schedule that is already in the past", HttpStatusCodes.BadRequest);
   }
 
-  return await prisma.showschedules.update({
+  return await prisma.showSchedule.update({
     where: { scheduleId },
     data: { isOpen: true },
   });
 };
 
 export const deleteSchedule = async (scheduleId) => {
-  const schedule = await prisma.showschedules.findUnique({
+  const schedule = await prisma.showSchedule.findUnique({
     where: { scheduleId },
     select: { isOpen: true },
   });
@@ -114,11 +114,11 @@ export const deleteSchedule = async (scheduleId) => {
   //   throw new AppError("Cannot delete an open schedule", HttpStatusCodes.BadRequest);
   // }
 
-  return await prisma.showschedules.delete({ where: { scheduleId } });
+  return await prisma.showSchedule.delete({ where: { scheduleId } });
 };
 
 export const reschedule = async ({ scheduleId, newDateTime }) => {
-  const schedule = await prisma.showschedules.findUnique({
+  const schedule = await prisma.showSchedule.findUnique({
     where: { scheduleId },
     select: { isOpen: true, showId: true },
   });
@@ -138,7 +138,7 @@ export const reschedule = async ({ scheduleId, newDateTime }) => {
     throw new AppError(`Cannot reschedule to a past date/time (PH time): ${newDatePH.format("YYYY-MM-DD HH:mm A")}`, HttpStatusCodes.BadRequest);
   }
 
-  const conflicts = await prisma.showschedules.findMany({
+  const conflicts = await prisma.showSchedule.findMany({
     where: {
       datetime: newDateTime,
       NOT: { scheduleId },
@@ -150,7 +150,7 @@ export const reschedule = async ({ scheduleId, newDateTime }) => {
     throw new AppError(`Conflicting schedules already exist for: ${conflictDetails.join(", ")}`, HttpStatusCodes.Conflict);
   }
 
-  return await prisma.showschedules.update({
+  return await prisma.showSchedule.update({
     where: { scheduleId },
     data: { datetime: newDateTime },
   });
@@ -164,11 +164,11 @@ export const copySchedule = async ({ scheduleId, newDateTime }) => {
     throw new AppError(`Cannot copy schedule to a past date/time (PH time): ${newDatePH.format("YYYY-MM-DD hh:mm A")}`, HttpStatusCodes.BadRequest);
   }
 
-  const existingSchedule = await prisma.showschedules.findUnique({
+  const existingSchedule = await prisma.showSchedule.findUnique({
     where: { scheduleId },
     include: {
-      ticket: true,
-      showseats: {
+      tickets: true,
+      seats: {
         include: {
           ticket: {
             select: {
@@ -177,7 +177,7 @@ export const copySchedule = async ({ scheduleId, newDateTime }) => {
           },
         },
       },
-      ticketpricing: true,
+      ticketPricing: true,
     },
   });
 
@@ -185,7 +185,7 @@ export const copySchedule = async ({ scheduleId, newDateTime }) => {
     throw new AppError("Schedule not found", HttpStatusCodes.NotFound);
   }
 
-  const conflicts = await prisma.showschedules.findMany({
+  const conflicts = await prisma.showSchedule.findMany({
     where: {
       datetime: newDateTime,
       NOT: { scheduleId },
@@ -199,35 +199,35 @@ export const copySchedule = async ({ scheduleId, newDateTime }) => {
 
   return await prisma.$transaction(async (tx) => {
     // Create new schedule
-    const newSchedule = await tx.showschedules.create({
+    const newSchedule = await tx.showSchedule.create({
       data: {
         datetime: newDatePH,
         showId: existingSchedule.showId,
         seatingType: existingSchedule.seatingType,
         scheduleId: crypto.randomUUID(),
         ticketType: existingSchedule.ticketType,
-        ticketPricing: existingSchedule.ticketPricing,
+        ticketPricingId: existingSchedule.ticketPricingId,
       },
     });
 
     if (existingSchedule.ticketType === "ticketed") {
-      const orchestraControlNumbers = existingSchedule.ticket.filter((t) => t.ticketSection === "orchestra").map((t) => t.controlNumber);
-      const balconyControlNumbers = existingSchedule.ticket.filter((t) => t.ticketSection === "balcony").map((t) => t.controlNumber);
-      const complimentaryControlNumbers = existingSchedule.ticket.filter((t) => t.isComplimentary).map((t) => t.controlNumber);
+      const orchestraControlNumbers = existingSchedule.tickets.filter((t) => t.ticketSection === "orchestra").map((t) => t.controlNumber);
+      const balconyControlNumbers = existingSchedule.tickets.filter((t) => t.ticketSection === "balcony").map((t) => t.controlNumber);
+      const complimentaryControlNumbers = existingSchedule.tickets.filter((t) => t.isComplimentary).map((t) => t.controlNumber);
 
       await generateScheduleTicketsAndSeats({
         tx,
         scheduleId: newSchedule.scheduleId,
-        ticketPricing: existingSchedule.ticketpricing,
-        seatPricing: existingSchedule.ticketpricing.type || "fixed",
+        ticketPricing: existingSchedule.ticketPricing,
+        seatPricing: existingSchedule.ticketPricing.type || "fixed",
         controlNumbers: {
           orchestra: orchestraControlNumbers,
           balcony: balconyControlNumbers,
           complimentary: complimentaryControlNumbers,
         },
         seatingConfiguration: existingSchedule.seatingType,
-        seats: existingSchedule.showseats
-          ? existingSchedule.showseats.map((seat) => ({
+        seats: existingSchedule.seats
+          ? existingSchedule.seats.map((seat) => ({
               ...seat,
               section: seat.seatSection,
               ticketControlNumber: seat.ticket ? seat.ticket.controlNumber : 0,
@@ -236,12 +236,12 @@ export const copySchedule = async ({ scheduleId, newDateTime }) => {
       });
     }
 
-    return { ...newSchedule, ticketPricing: existingSchedule.ticketpricing };
+    return { ...newSchedule, ticketPricing: existingSchedule.ticketPricing };
   });
 };
 
 export const generateScheduleTicketsAndSeats = async ({
-  tx,
+  tx = prisma,
   scheduleId,
   seatPricing,
   seats,
@@ -307,61 +307,40 @@ export const generateScheduleTicketsAndSeats = async ({
   complimentary.forEach((num) => createTicketAndLinkSeat(num, null, true));
 
   await tx.ticket.createMany({ data: tickets });
-  await tx.showseats.createMany({ data: seatsData });
+  await tx.showSeat.createMany({ data: seatsData });
 
   return tickets;
 };
 
 export const getShowSchedules = async ({ showId, excludeClosed = false, excludeReservationOff = false }) => {
-  const schedules = await prisma.showschedules.findMany({
+  const schedules = await prisma.showSchedule.findMany({
     where: {
       showId,
       ...(excludeClosed && { isOpen: true }),
       ...(excludeReservationOff && { closedReservation: false }),
     },
     include: {
-      ticketpricing: true,
+      ticketPricing: true,
     },
     orderBy: { datetime: "asc" },
   });
 
-  return schedules.map((schedule) => ({
-    ...schedule,
-    ticketPricing: schedule.ticketpricing,
-  }));
+  return schedules;
 };
 
 export const getScheduleDetails = async (scheduleId) => {
-  const schedule = await prisma.showschedules.findUnique({
+  const schedule = await prisma.showSchedule.findUnique({
     where: { scheduleId },
     include: {
-      ticketpricing: true,
+      ticketPricing: true,
     },
   });
 
-  const { ticketpricing, ...rest } = schedule;
-
-  let ticketPricing = null;
-
-  if (ticketpricing) {
-    ticketPricing = {
-      ...ticketpricing,
-      fixedPrice: ticketpricing.fixedPrice ? Number(ticketpricing.fixedPrice) : null,
-      commisionFee: ticketpricing.commisionFee ? Number(ticketpricing.commisionFee) : 0,
-      sectionPrices: ticketpricing.sectionPrices
-        ? Object.fromEntries(Object.entries(ticketpricing.sectionPrices).map(([k, v]) => [k, Number(v)]))
-        : null,
-    };
-  }
-
-  return {
-    ...rest,
-    ticketPricing,
-  };
+  return schedule;
 };
 
 export const getScheduleSummary = async (scheduleId) => {
-  const schedule = await prisma.showschedules.findUnique({ where: { scheduleId }, include: { ticketpricing: true } });
+  const schedule = await prisma.showSchedule.findUnique({ where: { scheduleId }, include: { ticketPricing: true } });
 
   if (!schedule) {
     throw new AppError("Schedule Not Found");
@@ -394,10 +373,10 @@ export const getScheduleSummary = async (scheduleId) => {
   const orchestraTickets = summarizeTickets(scheduleTickets.filter((t) => t.ticketSection === "orchestra" && !t.isComplimentary));
 
   // Distributor Summary
-  const distributors = await prisma.users.findMany({
+  const distributors = await prisma.user.findMany({
     where: {
       distributor: { isNot: null },
-      ticket: { some: { scheduleId } },
+      tickets: { some: { scheduleId } },
     },
     select: {
       userId: true,
@@ -417,8 +396,8 @@ export const getScheduleSummary = async (scheduleId) => {
       const unsoldTickets = totalAllocatedTickets - soldTickets;
       const pendingRemittance = soldTickets - remittedTickets;
 
-      const expected = data.reduce((acc, t) => acc + (Number(t.ticketPrice) - schedule.ticketpricing.commisionFee), 0);
-      const remitted = data.filter((t) => t.isRemitted).reduce((acc, t) => acc + (Number(t.ticketPrice) - schedule.ticketpricing.commisionFee), 0);
+      const expected = data.reduce((acc, t) => acc + (Number(t.ticketPrice) - schedule.ticketPricing.commissionFee), 0);
+      const remitted = data.filter((t) => t.isRemitted).reduce((acc, t) => acc + (Number(t.ticketPrice) - schedule.ticketPricing.commissionFee), 0);
 
       const balanceDue = expected - remitted;
 
@@ -441,7 +420,7 @@ export const getScheduleSummary = async (scheduleId) => {
   let ticketPricesBySection;
 
   if (schedule.seatingType === "controlledSeating") {
-    const seats = await prisma.showseats.findMany({
+    const seats = await prisma.showSeat.findMany({
       where: { scheduleId },
       include: {
         ticket: {
@@ -496,8 +475,8 @@ export const getScheduleSummary = async (scheduleId) => {
   const grossCurrent = currentAgg._sum.ticketPrice || 0;
 
   // commission totals
-  const commissionExpected = schedule.ticketpricing.commisionFee * (balconyTickets.total + orchestraTickets.total);
-  const commissionCurrent = schedule.ticketpricing.commisionFee * (balconyTickets.sold + orchestraTickets.sold);
+  const commissionExpected = schedule.ticketPricing.commissionFee * (balconyTickets.total + orchestraTickets.total);
+  const commissionCurrent = schedule.ticketPricing.commissionFee * (balconyTickets.sold + orchestraTickets.sold);
 
   // net values
   const expectedSales = grossExpected - commissionExpected;
@@ -535,7 +514,7 @@ export const getScheduleTickets = async (scheduleId) => {
       controlNumber: "asc",
     },
     include: {
-      showseats: {
+      seats: {
         select: {
           seatNumber: true,
         },
@@ -545,7 +524,7 @@ export const getScheduleTickets = async (scheduleId) => {
   });
   const mapped = tickets.map((ticket) => ({
     ...ticket,
-    seatNumber: ticket.showseats[0]?.seatNumber ?? null,
+    seatNumber: ticket.seats[0]?.seatNumber ?? null,
     isRemitted: ticket.status === "lost" || ticket.status === "sold" || ticket.status === "remitted",
   }));
 
@@ -554,10 +533,10 @@ export const getScheduleTickets = async (scheduleId) => {
 
 export const getScheduleDistributors = async (scheduleId) => {
   // Get all distributors who have allocations for this schedule
-  const distributors = await prisma.users.findMany({
+  const distributors = await prisma.user.findMany({
     where: {
       distributor: { isNot: null },
-      ticket: { some: { scheduleId } }, // tickets linked to this distributor for this schedule
+      tickets: { some: { scheduleId } }, // tickets linked to this distributor for this schedule
     },
     select: {
       userId: true,
@@ -567,10 +546,10 @@ export const getScheduleDistributors = async (scheduleId) => {
       distributor: {
         select: {
           department: { select: { name: true } },
-          distributortypes: { select: { name: true } },
+          distributorType: { select: { name: true } },
         },
       },
-      ticket: {
+      tickets: {
         where: { scheduleId },
         select: {
           ticketId: true,
@@ -581,9 +560,9 @@ export const getScheduleDistributors = async (scheduleId) => {
   });
 
   return distributors.map((dist) => {
-    const allocatedTickets = dist.ticket.filter((t) => t.status === "allocated");
+    const allocatedTickets = dist.tickets.filter((t) => t.status === "allocated");
     const totalAllocated = allocatedTickets.length;
-    const totalSold = dist.ticket.filter((t) => ["sold", "remitted", "lost"].includes(t.status)).length;
+    const totalSold = dist.tickets.filter((t) => ["sold", "remitted", "lost"].includes(t.status)).length;
 
     return {
       userId: dist.userId,
@@ -592,13 +571,13 @@ export const getScheduleDistributors = async (scheduleId) => {
       totalSold,
       email: dist.email,
       department: dist.distributor?.department?.name ?? null,
-      distributorType: dist.distributor?.distributortypes?.name ?? null,
+      distributorType: dist.distributor?.distributorType?.name ?? null,
     };
   });
 };
 
 export const getScheduleSeatMap = async (scheduleId) => {
-  const seatMap = await prisma.showseats.findMany({
+  const seatMap = await prisma.showSeat.findMany({
     where: { scheduleId },
     select: {
       seatNumber: true,
@@ -612,13 +591,13 @@ export const getScheduleSeatMap = async (scheduleId) => {
           controlNumber: true,
           ticketPrice: true,
           isComplimentary: true,
-          users: {
+          distributor: {
             select: {
               firstName: true,
               lastName: true,
               distributor: {
                 select: {
-                  distributortypes: {
+                  distributorType: {
                     select: {
                       name: true,
                     },
@@ -648,11 +627,11 @@ export const getScheduleSeatMap = async (scheduleId) => {
     ticketControlNumber: seat.ticket?.controlNumber ?? 0,
     ticketPrice: seat.ticket?.ticketPrice ?? 0,
     isComplimentary: seat.ticket?.isComplimentary ?? false,
-    distributor: seat.ticket?.users
+    distributor: seat.ticket?.distributor
       ? {
-          name: `${seat.ticket.users.firstName} ${seat.ticket.users.lastName}`,
-          type: seat.ticket.users.distributor?.distributortypes?.name ?? null,
-          department: seat.ticket.users.distributor?.department?.name ?? null,
+          name: `${seat.ticket.distributor.firstName} ${seat.ticket.distributor.lastName}`,
+          type: seat.ticket.distributor.distributor?.distributorType?.name ?? null,
+          department: seat.ticket.distributor.distributor?.department?.name ?? null,
         }
       : null,
   }));
@@ -661,12 +640,13 @@ export const getScheduleSeatMap = async (scheduleId) => {
 };
 
 export const allocateTicket = async ({ scheduleId, distributorId, allocatedBy, controlNumbers }) => {
-  return await prisma.$transaction(async (prisma) => {
+  return await prisma.$transaction(async (tx) => {
     // Validate distributor exists and is active
-    const distributor = await prisma.users.findFirst({
+    const distributor = await tx.user.findFirst({
       where: {
         userId: distributorId,
         isLocked: false,
+        isArchived: false,
       },
       include: {
         distributor: true,
@@ -678,7 +658,7 @@ export const allocateTicket = async ({ scheduleId, distributorId, allocatedBy, c
     }
 
     // Validate schedule exists and is open
-    const schedule = await prisma.showschedules.findFirst({
+    const schedule = await tx.showSchedule.findFirst({
       where: {
         scheduleId,
         isOpen: true,
@@ -690,7 +670,7 @@ export const allocateTicket = async ({ scheduleId, distributorId, allocatedBy, c
     }
 
     // Find and validate tickets
-    const tickets = await prisma.ticket.findMany({
+    const tickets = await tx.ticket.findMany({
       where: {
         scheduleId,
         controlNumber: {
@@ -698,7 +678,7 @@ export const allocateTicket = async ({ scheduleId, distributorId, allocatedBy, c
         },
       },
       include: {
-        showschedules: true,
+        schedule: true,
       },
     });
 
@@ -767,7 +747,7 @@ export const allocateTicket = async ({ scheduleId, distributorId, allocatedBy, c
     }
 
     // Create allocation log with allocated tickets
-    await prisma.ticketactionlog.create({
+    await tx.ticketActionLog.create({
       data: {
         actionLogId: crypto.randomUUID(),
         scheduleId,
@@ -775,7 +755,7 @@ export const allocateTicket = async ({ scheduleId, distributorId, allocatedBy, c
         actionBy: allocatedBy,
         actionDate: new Date(),
         actionType: "allocate",
-        logtickets: {
+        logs: {
           create: validTickets.map((ticket) => ({
             ticketId: ticket.ticketId,
           })),
@@ -784,7 +764,7 @@ export const allocateTicket = async ({ scheduleId, distributorId, allocatedBy, c
     });
 
     // Update the tickets status
-    await prisma.ticket.updateMany({
+    await tx.ticket.updateMany({
       where: {
         ticketId: {
           in: validTickets.map((ticket) => ticket.ticketId),
@@ -797,7 +777,7 @@ export const allocateTicket = async ({ scheduleId, distributorId, allocatedBy, c
     });
 
     if (schedule.seatingType === "controlledSeating") {
-      const seatNumbers = await prisma.showseats.findMany({
+      const seatNumbers = await prisma.showSeat.findMany({
         where: {
           scheduleId,
           ticketId: {
@@ -810,7 +790,7 @@ export const allocateTicket = async ({ scheduleId, distributorId, allocatedBy, c
       });
 
       if (seatNumbers.length > 0) {
-        await prisma.showseats.updateMany({
+        await tx.showSeat.updateMany({
           where: {
             scheduleId,
             seatNumber: {
@@ -832,9 +812,9 @@ export const allocateTicket = async ({ scheduleId, distributorId, allocatedBy, c
 };
 
 export const unallocateTicket = async ({ scheduleId, distributorId, unallocatedBy, controlNumbers }) => {
-  return await prisma.$transaction(async (prisma) => {
+  return await prisma.$transaction(async (tx) => {
     // Validate distributor exists and is active
-    const distributor = await prisma.users.findFirst({
+    const distributor = await tx.user.findFirst({
       where: {
         userId: distributorId,
         isArchived: false,
@@ -850,11 +830,10 @@ export const unallocateTicket = async ({ scheduleId, distributorId, unallocatedB
     }
 
     // Validate schedule exists and is open
-    const schedule = await prisma.showschedules.findFirst({
+    const schedule = await tx.showSchedule.findFirst({
       where: {
         scheduleId,
         isOpen: true,
-        isArchived: false,
       },
     });
 
@@ -863,7 +842,7 @@ export const unallocateTicket = async ({ scheduleId, distributorId, unallocatedB
     }
 
     // Find and validate tickets
-    const tickets = await prisma.ticket.findMany({
+    const tickets = await tx.ticket.findMany({
       where: {
         scheduleId,
         controlNumber: {
@@ -871,7 +850,7 @@ export const unallocateTicket = async ({ scheduleId, distributorId, unallocatedB
         },
       },
       include: {
-        showschedules: true,
+        schedule: true,
       },
     });
 
@@ -940,7 +919,7 @@ export const unallocateTicket = async ({ scheduleId, distributorId, unallocatedB
     }
 
     // Create allocation log with allocated tickets
-    await prisma.ticketactionlog.create({
+    await tx.ticketActionLog.create({
       data: {
         actionLogId: crypto.randomUUID(),
         scheduleId,
@@ -948,7 +927,7 @@ export const unallocateTicket = async ({ scheduleId, distributorId, unallocatedB
         actionBy: unallocatedBy,
         actionDate: new Date(),
         actionType: "unallocate",
-        logtickets: {
+        logs: {
           create: validTickets.map((ticket) => ({
             ticketId: ticket.ticketId,
           })),
@@ -957,7 +936,7 @@ export const unallocateTicket = async ({ scheduleId, distributorId, unallocatedB
     });
 
     // Update the tickets status
-    await prisma.ticket.updateMany({
+    await tx.ticket.updateMany({
       where: {
         ticketId: {
           in: validTickets.map((ticket) => ticket.ticketId),
@@ -970,7 +949,7 @@ export const unallocateTicket = async ({ scheduleId, distributorId, unallocatedB
     });
 
     if (schedule.seatingType === "controlledSeating") {
-      const seatNumbers = await prisma.showseats.findMany({
+      const seatNumbers = await tx.showSeat.findMany({
         where: {
           scheduleId,
           ticketId: {
@@ -983,7 +962,7 @@ export const unallocateTicket = async ({ scheduleId, distributorId, unallocatedB
       });
 
       if (seatNumbers.length > 0) {
-        await prisma.showseats.updateMany({
+        await tx.showSeat.updateMany({
           where: {
             scheduleId,
             seatNumber: {
@@ -1015,17 +994,19 @@ export const remitTicketSales = async ({
   remarks = null,
 }) => {
   // Validate schedule
-  const schedule = await prisma.showschedules.findUnique({
+  const schedule = await prisma.showSchedule.findUnique({
     where: { scheduleId },
   });
+
   if (!schedule) {
     throw new AppError("Provided Schedule does not exist");
   }
 
   // Validate distributor
-  const distributor = await prisma.users.findUnique({
+  const distributor = await prisma.user.findUnique({
     where: { userId: distributorId },
   });
+
   if (!distributor) {
     throw new AppError("Distributor not found");
   }
@@ -1038,6 +1019,7 @@ export const remitTicketSales = async ({
     where: { scheduleId, controlNumber: { in: allControlNumbers } },
     select: { ticketId: true, controlNumber: true },
   });
+
   const ticketIdMap = Object.fromEntries(tickets.map((t) => [t.controlNumber, t.ticketId]));
 
   // Action log ID
@@ -1052,7 +1034,7 @@ export const remitTicketSales = async ({
       });
 
       // Update seat status to sold
-      await tx.showseats.updateMany({
+      await tx.showSeat.updateMany({
         where: { scheduleId, ticketId: { in: sold.map((cn) => ticketIdMap[cn]) } },
         data: { status: "sold" },
       });
@@ -1066,7 +1048,7 @@ export const remitTicketSales = async ({
       });
 
       // Update seat status to sold
-      await tx.showseats.updateMany({
+      await tx.showSeat.updateMany({
         where: { scheduleId, ticketId: { in: sold.map((cn) => ticketIdMap[cn]) } },
         data: { status: "sold" },
       });
@@ -1080,14 +1062,14 @@ export const remitTicketSales = async ({
       });
 
       // Update seat status to sold
-      await tx.showseats.updateMany({
+      await tx.showSeat.updateMany({
         where: { scheduleId, ticketId: { in: sold.map((cn) => ticketIdMap[cn]) } },
         data: { status: "sold" },
       });
     }
 
     // Create ticket action log
-    await tx.ticketactionlog.create({
+    await tx.ticketActionLog.create({
       data: {
         actionLogId,
         actionBy,
@@ -1095,7 +1077,7 @@ export const remitTicketSales = async ({
         scheduleId,
         remarks,
         actionType: "remit",
-        logtickets: {
+        logs: {
           createMany: {
             data: [
               ...sold.map((cn) => ({
@@ -1113,7 +1095,7 @@ export const remitTicketSales = async ({
 };
 
 export const unremitTicketSales = async ({ remittedTickets, scheduleId, distributorId, actionBy, remarks = null }) => {
-  const schedule = await prisma.showschedules.findUnique({
+  const schedule = await prisma.showSchedule.findUnique({
     where: { scheduleId },
   });
 
@@ -1121,7 +1103,7 @@ export const unremitTicketSales = async ({ remittedTickets, scheduleId, distribu
     throw new AppError("Provided Schedule does not exist");
   }
 
-  const distributor = await prisma.users.findUnique({
+  const distributor = await prisma.user.findUnique({
     where: { userId: distributorId },
   });
 
@@ -1148,7 +1130,7 @@ export const unremitTicketSales = async ({ remittedTickets, scheduleId, distribu
       data: { status: "allocated" },
     });
 
-    await tx.showseats.updateMany({
+    await tx.showSeat.updateMany({
       where: {
         scheduleId,
         ticket: {
@@ -1163,7 +1145,7 @@ export const unremitTicketSales = async ({ remittedTickets, scheduleId, distribu
       },
     });
 
-    await tx.ticketactionlog.create({
+    await tx.ticketActionLog.create({
       data: {
         actionLogId,
         actionBy,
@@ -1171,7 +1153,7 @@ export const unremitTicketSales = async ({ remittedTickets, scheduleId, distribu
         scheduleId,
         remarks,
         actionType: "unremit",
-        logtickets: {
+        logs: {
           createMany: {
             data: remittedTickets.map((cn) => ({
               ticketId: ticketIdMap[cn],
@@ -1184,7 +1166,7 @@ export const unremitTicketSales = async ({ remittedTickets, scheduleId, distribu
 };
 
 export const addTallyData = async ({ femaleCount, maleCount, scheduleId }) => {
-  return await prisma.showschedules.update({
+  return await prisma.showSchedule.update({
     where: { scheduleId },
     data: {
       maleCount,
@@ -1197,5 +1179,5 @@ export const addTallyData = async ({ femaleCount, maleCount, scheduleId }) => {
 };
 
 export const getTallyData = async (scheduleId) => {
-  return await prisma.showschedules.findUnique({ where: { scheduleId }, select: { femaleCount: true, maleCount: true } });
+  return await prisma.showSchedule.findUnique({ where: { scheduleId }, select: { femaleCount: true, maleCount: true } });
 };

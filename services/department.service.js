@@ -28,10 +28,10 @@ export const createDepartment = async ({ name, logoUrl }) => {
 };
 
 export const getDepartmentTrainer = async (departmentId) => {
-  const trainer = await prisma.department.findUnique({
+  const department = await prisma.department.findUnique({
     where: { departmentId },
     select: {
-      users: {
+      trainer: {
         select: {
           firstName: true,
           lastName: true,
@@ -42,15 +42,15 @@ export const getDepartmentTrainer = async (departmentId) => {
   });
 
   return {
-    name: trainer.users.firstName + " " + trainer.users.lastName,
-    id: trainer.users.userId,
+    name: department.trainer.firstName + " " + department.trainer.lastName,
+    id: department.trainer.userId,
   };
 };
 
 export const getDepartments = async () => {
   const departments = await prisma.department.findMany({
     include: {
-      users: {
+      trainer: {
         select: {
           firstName: true,
           lastName: true,
@@ -69,7 +69,7 @@ export const getDepartments = async () => {
     name: dep.name,
     trainerId: dep.trainerId,
     logoUrl: dep.logoUrl,
-    trainerName: dep.users ? `${dep.users.firstName} ${dep.users.lastName}` : null,
+    trainerName: dep.trainer ? `${dep.trainer.firstName} ${dep.trainer.lastName}` : null,
     totalShows: dep._count.shows,
   }));
 
@@ -77,8 +77,9 @@ export const getDepartments = async () => {
 };
 
 export const deleteDepartment = async (departmentId) => {
-  const shows = await prisma.shows.count({ where: { departmentId } });
+  const shows = await prisma.show.count({ where: { departmentId } });
   if (shows !== 0) throw new AppError("Cannot Delete a Department with Shows", HttpStatusCodes.Forbidden);
+
   const deletedDepartment = await prisma.department.delete({ where: { departmentId } });
 
   const fileId = getFileId(deletedDepartment.logoUrl);
@@ -140,14 +141,14 @@ export const createTrainerAndAssign = async ({ departmentId, firstName, lastName
   const userId = crypto.randomUUID();
 
   return await prisma.$transaction(async (tx) => {
-    await tx.users.create({
+    await tx.user.create({
       data: {
         userId,
         firstName,
         lastName,
         email,
         password: "123456",
-        userroles: {
+        roles: {
           create: {
             role: "trainer",
           },

@@ -3,7 +3,7 @@ import prisma from "../utils/primsa.connection.js";
 export const autoClosePastSchedules = async () => {
   const now = new Date();
 
-  const result = await prisma.showschedules.updateMany({
+  const result = await prisma.showSchedule.updateMany({
     where: {
       isOpen: true,
       datetime: {

@@ -4,13 +4,13 @@ import prisma from "../utils/primsa.connection.js";
 import { getUserByEmail, getUserById } from "./auth.service.js";
 
 export const getDistributorTypes = async () => {
-  return await prisma.distributortypes.findMany();
+  return await prisma.distributorType.findMany();
 };
 
 export const getTrainers = async () => {
-  const trainers = await prisma.users.findMany({
+  const trainers = await prisma.user.findMany({
     where: {
-      userroles: {
+      roles: {
         some: { role: "trainer" },
       },
     },
@@ -21,7 +21,7 @@ export const getTrainers = async () => {
           departmentId: true,
         },
       },
-      userroles: {
+      roles: {
         select: {
           role: true,
         },
@@ -31,14 +31,14 @@ export const getTrainers = async () => {
 
   return trainers.map((user) => ({
     ...user,
-    roles: user.userroles.map((ur) => ur.role),
+    roles: user.roles.map((ur) => ur.role),
   }));
 };
 
 export const getDistributors = async (departmentId) => {
-  const distributors = await prisma.users.findMany({
+  const distributors = await prisma.user.findMany({
     where: {
-      userroles: {
+      roles: {
         some: { role: "distributor" },
         every: { role: "distributor" },
       },
@@ -57,17 +57,17 @@ export const getDistributors = async (departmentId) => {
               departmentId: true,
             },
           },
-          distributortypes: {
+          distributorType: {
             select: {
               name: true,
-              haveCommision: true,
+              hasCommission: true,
               id: true,
             },
           },
           contactNumber: true,
         },
       },
-      userroles: {
+      roles: {
         select: {
           role: true,
         },
@@ -75,17 +75,16 @@ export const getDistributors = async (departmentId) => {
     },
   });
 
-  // Map userroles to roles array
   return distributors.map((user) => ({
     ...user,
-    roles: user.userroles.map((ur) => ur.role),
+    roles: user.roles.map((ur) => ur.role),
   }));
 };
 
 export const getCCAHeads = async () => {
-  const heads = await prisma.users.findMany({
+  const heads = await prisma.user.findMany({
     where: {
-      userroles: {
+      roles: {
         some: { role: "head" },
       },
     },
@@ -96,7 +95,7 @@ export const getCCAHeads = async () => {
           departmentId: true,
         },
       },
-      userroles: {
+      roles: {
         select: {
           role: true,
         },
@@ -106,7 +105,7 @@ export const getCCAHeads = async () => {
 
   return heads.map((user) => ({
     ...user,
-    roles: user.userroles.map((ur) => ur.role),
+    roles: user.roles.map((ur) => ur.role),
   }));
 };
 
@@ -117,15 +116,9 @@ export const editAccount = async ({ userId, firstName, lastName, email }) => {
     throw new AppError("Email already used", HttpStatusCodes.Conflict);
   }
 
-  return await prisma.users.update({
-    where: {
-      userId,
-    },
-    data: {
-      firstName,
-      lastName,
-      email,
-    },
+  return await prisma.user.update({
+    where: { userId },
+    data: { firstName, lastName, email },
   });
 };
 
@@ -147,41 +140,38 @@ export const createDistributorAccount = async ({ firstName, lastName, email, pas
     }
 
     const findDepartment = await prisma.department.findFirst({ where: { departmentId } });
-
     if (!findDepartment) {
       throw new AppError("Department ID not found", HttpStatusCodes.BadRequest);
     }
 
     distributorData.departmentId = departmentId;
   }
-  const result = await prisma.users.create({
+
+  const result = await prisma.user.create({
     data: {
       userId: crypto.randomUUID(),
       firstName,
       lastName,
       email,
       password: await hashPassword(password),
-
       distributor: {
         create: distributorData,
       },
-      userroles: {
+      roles: {
         create: { role: "distributor" },
       },
     },
   });
 
   const { password: _, createdAt, isArchived, isLocked, distributor, ...userData } = result;
-  const distributorDetails = distributor?.[0] ?? distributor;
-
   return {
     ...userData,
-    ...distributorDetails,
+    ...distributor,
   };
 };
 
 export const editDistributorAccount = async ({ userId, firstName, lastName, email, password, distributorType, contactNumber, departmentId }) => {
-  const existingUser = await prisma.users.findUnique({
+  const existingUser = await prisma.user.findUnique({
     where: { userId },
     include: { distributor: true },
   });
@@ -191,7 +181,7 @@ export const editDistributorAccount = async ({ userId, firstName, lastName, emai
   }
 
   if (email && email !== existingUser.email) {
-    const emailTaken = await prisma.users.findUnique({ where: { email } });
+    const emailTaken = await prisma.user.findUnique({ where: { email } });
     if (emailTaken) {
       throw new AppError("Email already used", HttpStatusCodes.Conflict);
     }
@@ -217,7 +207,7 @@ export const editDistributorAccount = async ({ userId, firstName, lastName, emai
     throw new AppError("Distributor not found", HttpStatusCodes.NotFound);
   }
 
-  const updatedUser = await prisma.users.update({
+  const updatedUser = await prisma.user.update({
     where: { userId },
     data: {
       firstName,
@@ -226,9 +216,7 @@ export const editDistributorAccount = async ({ userId, firstName, lastName, emai
       ...(password && { password: await hashPassword(password) }),
       distributor: {
         update: {
-          where: {
-            userId,
-          },
+          where: { userId },
           data: {
             contactNumber,
             distributorTypeId: Number(distributorType),
@@ -243,7 +231,7 @@ export const editDistributorAccount = async ({ userId, firstName, lastName, emai
   const { password: _, createdAt, isArchived, isLocked, distributor, ...userData } = updatedUser;
   return {
     ...userData,
-    ...distributor[0],
+    ...distributor,
   };
 };
 
@@ -255,15 +243,15 @@ export const deleteUsersSafely = async (userIds) => {
     const hasReferences =
       (await prisma.department.count({ where: { trainerId: userId } })) > 0 ||
       (await prisma.distributor.count({ where: { userId } })) > 0 ||
-      (await prisma.notifications.count({ where: { OR: [{ senderId: userId }, { receiverId: userId }] } })) > 0 ||
-      (await prisma.shows.count({ where: { createdBy: userId } })) > 0 ||
+      (await prisma.notification.count({ where: { OR: [{ senderId: userId }, { receiverId: userId }] } })) > 0 ||
+      (await prisma.show.count({ where: { createdBy: userId } })) > 0 ||
       (await prisma.ticket.count({ where: { distributorId: userId } })) > 0 ||
-      (await prisma.ticketactionlog.count({ where: { OR: [{ actionBy: userId }, { distributorId: userId }] } })) > 0;
+      (await prisma.ticketActionLog.count({ where: { OR: [{ actionBy: userId }, { distributorId: userId }] } })) > 0;
 
     if (hasReferences) {
       skippedUsers.push(userId);
     } else {
-      await prisma.users.delete({ where: { userId } });
+      await prisma.user.delete({ where: { userId } });
       deletedUsers.push(userId);
     }
   }
@@ -274,39 +262,34 @@ export const deleteUsersSafely = async (userIds) => {
 export const deleteUserSafely = async (userId) => {
   const hasReferences =
     (await prisma.department.count({ where: { trainerId: userId } })) > 0 ||
-    (await prisma.notifications.count({
-      where: { OR: [{ senderId: userId }] },
-    })) > 0 ||
-    (await prisma.shows.count({ where: { createdBy: userId } })) > 0 ||
+    (await prisma.notification.count({ where: { OR: [{ senderId: userId }] } })) > 0 ||
+    (await prisma.show.count({ where: { createdBy: userId } })) > 0 ||
     (await prisma.ticket.count({ where: { distributorId: userId } })) > 0 ||
-    (await prisma.ticketactionlog.count({
-      where: { OR: [{ actionBy: userId }, { distributorId: userId }] },
-    })) > 0;
+    (await prisma.ticketActionLog.count({ where: { OR: [{ actionBy: userId }, { distributorId: userId }] } })) > 0;
 
   if (hasReferences) {
     throw new AppError("User cannot be deleted, user contains some data");
   }
 
-  await prisma.users.delete({ where: { userId } });
+  await prisma.user.delete({ where: { userId } });
   return { deleted: true };
 };
 
 export const archiveUser = async (userId) => {
-  await prisma.users.update({ where: { userId }, data: { isArchived: true } });
+  await prisma.user.update({ where: { userId }, data: { isArchived: true } });
 };
 
 export const unArchiveUser = async (userId) => {
-  await prisma.users.update({ where: { userId }, data: { isArchived: false } });
+  await prisma.user.update({ where: { userId }, data: { isArchived: false } });
 };
 
 export const getUserRoles = async (userId) => {
-  const roles = await prisma.userroles.findMany({ where: { userId } });
-
+  const roles = await prisma.userRole.findMany({ where: { userId } });
   return roles.map((role) => role.role);
 };
 
 export const addCCAHeadRoles = async (userIds) => {
-  return prisma.userroles.createMany({
+  return prisma.userRole.createMany({
     data: userIds.map((id) => ({
       userId: id,
       role: "head",
@@ -315,7 +298,7 @@ export const addCCAHeadRoles = async (userIds) => {
 };
 
 export const removeCCAHeadRole = async (userId) => {
-  const headCount = await prisma.userroles.count({
+  const headCount = await prisma.userRole.count({
     where: { role: "head" },
   });
 
@@ -323,7 +306,7 @@ export const removeCCAHeadRole = async (userId) => {
     throw new AppError("Cannot remove the last remaining CCA Head.");
   }
 
-  return prisma.userroles.delete({
+  return prisma.userRole.delete({
     where: {
       userId_role: {
         userId,

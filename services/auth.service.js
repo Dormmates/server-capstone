@@ -3,7 +3,7 @@ import { hashPassword, verifyPassword } from "../utils/password.utils.js";
 import prisma from "../utils/primsa.connection.js";
 
 export const getUserByEmail = async (email) => {
-  const user = await prisma.users.findUnique({
+  const user = await prisma.user.findUnique({
     where: { email },
     select: {
       password: true,
@@ -14,7 +14,7 @@ export const getUserByEmail = async (email) => {
       distributor: {
         select: {
           contactNumber: true,
-          distributortypes: {
+          distributorType: {
             select: {
               id: true,
               name: true,
@@ -34,7 +34,7 @@ export const getUserByEmail = async (email) => {
           name: true,
         },
       },
-      userroles: {
+      roles: {
         select: {
           role: true,
         },
@@ -46,12 +46,12 @@ export const getUserByEmail = async (email) => {
 
   return {
     ...user,
-    roles: user.userroles.map((r) => r.role),
+    roles: user.roles.map((r) => r.role),
   };
 };
 
 export const getUserById = async (userId) => {
-  const user = await prisma.users.findFirst({
+  const user = await prisma.user.findFirst({
     where: { userId },
     select: {
       userId: true,
@@ -61,7 +61,7 @@ export const getUserById = async (userId) => {
       distributor: {
         select: {
           contactNumber: true,
-          distributortypes: {
+          distributorType: {
             select: {
               id: true,
               name: true,
@@ -81,7 +81,7 @@ export const getUserById = async (userId) => {
           name: true,
         },
       },
-      userroles: {
+      roles: {
         select: {
           role: true,
         },
@@ -89,7 +89,7 @@ export const getUserById = async (userId) => {
     },
   });
 
-  return { ...user, roles: user.userroles.map((r) => r.role) };
+  return { ...user, roles: user.roles.map((r) => r.role) };
 };
 
 export const login = async ({ email, password }) => {
@@ -116,17 +116,20 @@ export const createAccount = async ({ firstName, lastName, userType, email, pass
     throw new AppError("Email already used", HttpStatusCodes.Conflict);
   }
 
-  const newAccount = await prisma.users.create({
+  const rolesToCreate = [{ role: userType }];
+  if (userType === "head") {
+    rolesToCreate.push({ role: "trainer" });
+  }
+
+  const newAccount = await prisma.user.create({
     data: {
       userId: crypto.randomUUID(),
       firstName,
       lastName,
       email,
       password: await hashPassword(password),
-      userroles: {
-        create: {
-          role: userType,
-        },
+      roles: {
+        create: rolesToCreate,
       },
     },
   });

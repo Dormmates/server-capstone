@@ -3,7 +3,7 @@ import { getFileId } from "../utils/general.utils.js";
 import prisma from "../utils/primsa.connection.js";
 
 export const doesShowExist = async (showId) => {
-  const existingShow = await prisma.shows.findUnique({
+  const existingShow = await prisma.show.findUnique({
     where: { showId },
     select: { showId: true },
   });
@@ -12,7 +12,7 @@ export const doesShowExist = async (showId) => {
 };
 
 export const createShow = async ({ showTitle, coverImage, description, department, genre = [], createdBy, showType }) => {
-  const newShow = await prisma.shows.create({
+  const newShow = await prisma.show.create({
     data: {
       showId: crypto.randomUUID(),
       title: showTitle,
@@ -21,9 +21,9 @@ export const createShow = async ({ showTitle, coverImage, description, departmen
       ...(department && { departmentId: department }),
       createdBy,
       showCover: coverImage,
-      showgenre: {
+      genres: {
         create: genre.map((name) => ({
-          genre_showgenre_genreTogenre: {
+          genreFk: {
             connectOrCreate: {
               where: { name: name.trim() },
               create: { name: name.trim() },
@@ -42,20 +42,20 @@ export const createShow = async ({ showTitle, coverImage, description, departmen
       createdAt: true,
       isArchived: true,
       showCover: true,
-      users: {
+      creator: {
         select: {
           firstName: true,
           lastName: true,
         },
       },
-      showgenre: {
+      genres: {
         select: {
-          genre_showgenre_genreTogenre: {
+          genreFk: {
             select: { name: true },
           },
         },
       },
-      showschedules: true,
+      schedules: true,
     },
   });
 
@@ -64,7 +64,7 @@ export const createShow = async ({ showTitle, coverImage, description, departmen
 
 export const updateShow = async ({ showId, showTitle, coverImage, description, department, genre = [], showType }) => {
   return await prisma.$transaction(async (tx) => {
-    await tx.shows.update({
+    await tx.show.update({
       where: { showId },
       data: {
         title: showTitle,
@@ -76,18 +76,18 @@ export const updateShow = async ({ showId, showTitle, coverImage, description, d
     });
 
     // Remove existing genres
-    await tx.showgenre.deleteMany({
+    await tx.showGenre.deleteMany({
       where: { showId },
     });
 
     // Add updated genres
     for (const name of genre) {
-      await tx.showgenre.create({
+      await tx.showGenre.create({
         data: {
-          shows: {
+          show: {
             connect: { showId },
           },
-          genre_showgenre_genreTogenre: {
+          genreFk: {
             connectOrCreate: {
               where: { name: name.trim() },
               create: { name: name.trim() },
@@ -97,16 +97,16 @@ export const updateShow = async ({ showId, showTitle, coverImage, description, d
       });
     }
 
-    const updatedShow = await tx.shows.findUnique({
+    const updatedShow = await tx.show.findUnique({
       where: { showId },
       include: {
         department: true,
-        showgenre: {
+        genres: {
           include: {
-            genre_showgenre_genreTogenre: true,
+            genreFk: true,
           },
         },
-        showschedules: true,
+        schedules: true,
       },
     });
 
@@ -130,14 +130,14 @@ export const getShows = async ({ departmentId = null, showType = null, includeMa
 
     ...(excludeArchived && { isArchived: false }),
   };
-  const shows = await prisma.shows.findMany({
+  const shows = await prisma.show.findMany({
     where,
     include: {
-      showschedules: true,
+      schedules: true,
       department: true,
-      showgenre: {
+      genres: {
         include: {
-          genre_showgenre_genreTogenre: {
+          genreFk: {
             select: {
               name: true,
             },
@@ -150,25 +150,26 @@ export const getShows = async ({ departmentId = null, showType = null, includeMa
     },
   });
 
-  const transformedShows = shows.map(({ showgenre, ...rest }) => ({
+  const transformedShows = shows.map(({ genres, schedules, ...rest }) => ({
     ...rest,
-    genreNames: showgenre.map((g) => g.genre_showgenre_genreTogenre.name),
+    showschedules: schedules,
+    genreNames: genres.map((g) => g.genreFk.name),
   }));
 
   return { shows: transformedShows };
 };
 
 export const getShow = async ({ id }) => {
-  return await prisma.shows.findFirst({
+  return await prisma.show.findFirst({
     where: {
       showId: id,
     },
     include: {
-      showschedules: true,
+      schedules: true,
       department: true,
-      showgenre: {
+      genres: {
         include: {
-          genre_showgenre_genreTogenre: {
+          genreFk: {
             select: {
               name: true,
             },
@@ -181,14 +182,14 @@ export const getShow = async ({ id }) => {
 
 export const archiveShow = async (showId) => {
   const archivedShow = await prisma.$transaction(async (tx) => {
-    const show = await tx.shows.update({
+    const show = await tx.show.update({
       where: { showId },
       data: { isArchived: true },
     });
 
-    await tx.showschedules.deleteMany({
-      where: { showId },
-    });
+    // await tx.showSchedule.deleteMany({
+    //   where: { showId },
+    // });
 
     return show;
   });
@@ -197,14 +198,14 @@ export const archiveShow = async (showId) => {
 };
 
 export const unArchiveShow = async (showId) => {
-  return await prisma.shows.update({
+  return await prisma.show.update({
     where: { showId },
     data: { isArchived: false },
   });
 };
 
 export const deleteShow = async (showId) => {
-  const deletedShow = await prisma.shows.delete({
+  const deletedShow = await prisma.show.delete({
     where: { showId },
   });
 
@@ -218,19 +219,19 @@ export const deleteShow = async (showId) => {
 };
 
 export const generateSalesReport = async (showId, scheduleIds) => {
-  const show = await prisma.shows.findUnique({
+  const show = await prisma.show.findUnique({
     where: { showId },
     include: {
-      showschedules: {
+      schedules: {
         where: scheduleIds ? { scheduleId: { in: scheduleIds } } : undefined,
         include: {
-          ticket: {
+          tickets: {
             include: {
-              users: true,
-              showseats: true,
+              distributor: true,
+              seats: true,
             },
           },
-          ticketpricing: true,
+          ticketPricing: true,
         },
       },
     },
@@ -260,13 +261,13 @@ export const generateSalesReport = async (showId, scheduleIds) => {
     },
   };
 
-  for (const schedule of show.showschedules) {
-    const tickets = schedule.ticket ?? [];
-    const commissionFeePct = schedule.ticketpricing ? toNumber(schedule.ticketpricing.commisionFee) : 0;
+  for (const schedule of show.schedules) {
+    const tickets = schedule.tickets ?? [];
+    const commissionFeePct = schedule.ticketPricing ? toNumber(schedule.ticketPricing.commissionFee) : 0;
     const { ticketPricing, ticket, ...rest } = schedule;
 
     const scheduleTotals = {
-      schedule: { ...rest, ticketPricing: rest.ticketpricing },
+      schedule: { ...rest },
       totalTickets: tickets.length,
       soldTickets: 0,
       unsoldTickets: 0,
@@ -323,7 +324,7 @@ export const generateSalesReport = async (showId, scheduleIds) => {
       const netPrice = isSold ? ticketPrice : 0;
       const commissionAmount = isSold && commissionFeePct ? (commissionFeePct * netPrice) / 100 : 0;
 
-      const seat = t.showseats[0];
+      const seat = t.seats[0];
       const section = schedule.seatingType === "controlledSeating" ? seat.seatSection : "General";
 
       if (isSold) {
@@ -352,11 +353,11 @@ export const generateSalesReport = async (showId, scheduleIds) => {
       }
 
       //skip if no distributor
-      if (!t.users) continue;
+      if (!t.distributor) continue;
 
       // Distributor breakdown
-      const distributorId = t.users ? t.users.userId : "online";
-      const distributorName = t.users ? `${t.users.firstName} ${t.users.lastName}` : "Online Reservation";
+      const distributorId = t.distributor ? t.distributor.userId : "online";
+      const distributorName = t.distributor ? `${t.distributor.firstName} ${t.distributor.lastName}` : "Online Reservation";
 
       if (!distributorsMap.has(distributorId)) {
         distributorsMap.set(distributorId, {

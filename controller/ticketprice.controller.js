@@ -11,7 +11,7 @@ import {
 } from "../services/ticketprice.service.js";
 
 export const addTicketPricingController = asyncHandler(async (req, res) => {
-  const { priceName, type, fixedPrice, sectionPrices, commisionFee } = req.body;
+  const { priceName, type, fixedPrice, sectionPrices, commissionFee } = req.body;
 
   if (!priceName) {
     throw new AppError("Missing Post Fields", HttpStatusCodes.BadRequest);
@@ -21,12 +21,12 @@ export const addTicketPricingController = asyncHandler(async (req, res) => {
     if (!fixedPrice) {
       throw new AppError("Ticket Price is Missing", HttpStatusCodes.BadRequest);
     }
-    await newFixedPricing({ name: priceName, fixedPrice, commissionFee: commisionFee });
+    await newFixedPricing({ name: priceName, fixedPrice, commissionFee });
   } else {
     if (!sectionPrices) {
       throw new AppError("Sectioned Price is Missing", HttpStatusCodes.BadRequest);
     }
-    await newSectionedPricing({ name: priceName, commissionFee: commisionFee, sectionedPricing: sectionPrices });
+    await newSectionedPricing({ name: priceName, commissionFee, sectionedPricing: sectionPrices });
   }
 
   res.json({ message: "Pricing Created" });

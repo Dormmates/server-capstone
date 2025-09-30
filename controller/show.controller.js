@@ -29,7 +29,7 @@ export const createShowController = asyncHandler(async (req, res, next) => {
     .filter((g) => g !== "");
 
   const newShow = await createShow({ showTitle, coverImage: imageUrl, description, department, genre: cleanedGenres, createdBy, showType });
-  const genreNames = newShow?.showgenre.map((g) => g.genre_showgenre_genreTogenre.name);
+  const genreNames = newShow?.genres.map((g) => g.genreFk.name);
 
   sendShowNotification({
     actionBy: createdBy,
@@ -38,7 +38,7 @@ export const createShowController = asyncHandler(async (req, res, next) => {
     showType,
     department,
     action: ShowNotificationAction.CREATE,
-    name: newShow.users.firstName + " " + newShow.users.lastName,
+    name: newShow.creator.firstName + " " + newShow.creator.lastName,
   });
 
   res.status(HttpStatusCodes.OK).json({ ...newShow, genreNames });
@@ -86,9 +86,9 @@ export const getShowController = asyncHandler(async (req, res, next) => {
 
   const show = await getShow({ id });
 
-  const genreNames = show?.showgenre.map((g) => g.genre_showgenre_genreTogenre.name);
+  const genreNames = show?.genres.map((g) => g.genreFk.name);
 
-  const { showgenre, ...data } = show;
+  const { genres, ...data } = show;
 
   res.status(HttpStatusCodes.OK).json({
     ...data,

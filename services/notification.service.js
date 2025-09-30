@@ -12,10 +12,10 @@ export const createNotification = async ({ senderId, title, message, metaData = 
   const deliveryMap = {};
 
   const [notification] = await prisma.$transaction(async (tx) => {
-    const newNotification = await tx.notifications.create({
+    const newNotification = await tx.notification.create({
       data: { notificationId, senderId, title, message, metaData, type },
       include: {
-        users_notifications_senderIdTousers: {
+        sender: {
           select: { firstName: true, lastName: true },
         },
       },
@@ -27,11 +27,11 @@ export const createNotification = async ({ senderId, title, message, metaData = 
       return {
         id: deliveryId,
         notificationId,
-        receipientId: id,
+        recipientId: id,
       };
     });
 
-    await tx.notificationdelivery.createMany({ data: deliveries });
+    await tx.notificationDelivery.createMany({ data: deliveries });
 
     return [newNotification];
   });
@@ -47,7 +47,7 @@ export const createNotification = async ({ senderId, title, message, metaData = 
       metaData,
       readAt: null,
       sentAt: notification.sentAt,
-      sender: `${notification.users_notifications_senderIdTousers.firstName} ${notification.users_notifications_senderIdTousers.lastName}`,
+      sender: `${notification.sender.firstName} ${notification.sender.lastName}`,
     });
   });
 
@@ -55,18 +55,18 @@ export const createNotification = async ({ senderId, title, message, metaData = 
 };
 
 export const getUserNotifications = async ({ userId, cursor, limit = 30 }) => {
-  const notifications = await prisma.notificationdelivery.findMany({
-    where: { receipientId: userId },
+  const notifications = await prisma.notificationDelivery.findMany({
+    where: { recipientId: userId },
     cursor: cursor ? { id: cursor } : undefined,
     skip: cursor ? 1 : 0,
     take: limit + 1,
     orderBy: {
-      notifications: {
+      notification: {
         sentAt: "desc",
       },
     },
     include: {
-      notifications: {
+      notification: {
         select: {
           title: true,
           message: true,
@@ -87,7 +87,7 @@ export const getUserNotifications = async ({ userId, cursor, limit = 30 }) => {
     notifications: items.map((d) => ({
       notificationId: d.id,
       readAt: d.readAt,
-      ...d.notifications,
+      ...d.notification,
     })),
     nextCursor,
     hasNextPage,
@@ -95,22 +95,18 @@ export const getUserNotifications = async ({ userId, cursor, limit = 30 }) => {
 };
 
 export const getUnreadNotificationCount = async (userId) => {
-  const count = await prisma.notificationdelivery.count({
-    where: {
-      receipientId: userId,
-      readAt: null,
-    },
+  return prisma.notificationDelivery.count({
+    where: { recipientId: userId, readAt: null },
   });
-  return count;
 };
 
 export const markNotificationsRead = async (userId, notificationIds) => {
-  const whereClause = { receipientId: userId, readAt: null };
+  const whereClause = { recipientId: userId, readAt: null };
   if (notificationIds) {
     whereClause.notificationId = { in: notificationIds };
   }
 
-  const result = await prisma.notificationdelivery.updateMany({
+  const result = await prisma.notificationDelivery.updateMany({
     where: whereClause,
     data: { readAt: new Date() },
   });
@@ -119,15 +115,11 @@ export const markNotificationsRead = async (userId, notificationIds) => {
 };
 
 export const markNotificationAsRead = async (deliveryId) => {
-  const notificationDelivery = await prisma.notificationdelivery.update({
-    where: {
-      id: deliveryId,
-    },
-    data: {
-      readAt: new Date(),
-    },
+  const notificationDelivery = await prisma.notificationDelivery.update({
+    where: { id: deliveryId },
+    data: { readAt: new Date() },
     include: {
-      notifications: {
+      notification: {
         select: {
           notificationId: true,
           sentAt: true,
@@ -135,11 +127,8 @@ export const markNotificationAsRead = async (deliveryId) => {
           title: true,
           metaData: true,
           type: true,
-          users_notifications_senderIdTousers: {
-            select: {
-              firstName: true,
-              lastName: true,
-            },
+          sender: {
+            select: { firstName: true, lastName: true },
           },
         },
       },
@@ -148,24 +137,23 @@ export const markNotificationAsRead = async (deliveryId) => {
 
   return {
     deliveryId: notificationDelivery.id,
-    notificationId: notificationDelivery.notifications.notificationId,
-    title: notificationDelivery.notifications.title,
-    message: notificationDelivery.notifications.message,
-    metaData: notificationDelivery.notifications.metaData,
-    type: notificationDelivery.notifications.type,
-    sentAt: notificationDelivery.notifications.sentAt,
+    notificationId: notificationDelivery.notification.notificationId,
+    title: notificationDelivery.notification.title,
+    message: notificationDelivery.notification.message,
+    metadata: notificationDelivery.notification.metaData,
+    type: notificationDelivery.notification.type,
+    sentAt: notificationDelivery.notification.sentAt,
     readAt: notificationDelivery.readAt,
-    sender: `${notificationDelivery.notifications.users_notifications_senderIdTousers.firstName} ${notificationDelivery.notifications.users_notifications_senderIdTousers.lastName}`,
+    sender: `${notificationDelivery.notification.sender.firstName} ${notificationDelivery.notification.sender.lastName}`,
   };
 };
 
+// Utility functions to get user IDs by role
 export const getDistributorIds = async (excludeUserId) => {
-  const distributors = await prisma.users.findMany({
+  const distributors = await prisma.user.findMany({
     where: {
       userId: excludeUserId ? { not: excludeUserId } : undefined,
-      userroles: {
-        some: { role: "distributor" },
-      },
+      roles: { some: { role: "distributor" } },
     },
     select: { userId: true },
   });
@@ -174,12 +162,10 @@ export const getDistributorIds = async (excludeUserId) => {
 };
 
 export const getTrainerIds = async (excludeUserId) => {
-  const trainers = await prisma.users.findMany({
+  const trainers = await prisma.user.findMany({
     where: {
       userId: excludeUserId ? { not: excludeUserId } : undefined,
-      userroles: {
-        some: { role: "trainer" },
-      },
+      roles: { some: { role: "trainer" } },
     },
     select: { userId: true },
   });
@@ -188,12 +174,10 @@ export const getTrainerIds = async (excludeUserId) => {
 };
 
 export const getCcaHeadIds = async (excludeUserId) => {
-  const ccaHeads = await prisma.users.findMany({
+  const ccaHeads = await prisma.user.findMany({
     where: {
       userId: excludeUserId ? { not: excludeUserId } : undefined,
-      userroles: {
-        some: { role: "head" },
-      },
+      roles: { some: { role: "head" } },
     },
     select: { userId: true },
   });
