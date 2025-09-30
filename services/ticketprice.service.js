@@ -1,3 +1,4 @@
+import { AppError, HttpStatusCodes } from "../middleware/errorHandler.middleware.js";
 import prisma from "../utils/primsa.connection.js";
 
 export const newFixedPricing = async ({ name, fixedPrice, commissionFee }) => {
@@ -55,11 +56,33 @@ export const updatFixedPricing = async ({ priceId, name, fixedPrice, commissionF
 };
 
 export const deleteSectionedPricing = async (id) => {
-  return await prisma.ticketPricing.delete({ where: { id, type: "sectioned" } });
+  const inUse = await prisma.showSchedule.findFirst({
+    where: { ticketPricingId: id },
+    select: { scheduleId: true },
+  });
+
+  if (inUse) {
+    throw new AppError("Cannot delete: This sectioned pricing is already used by a schedule.", HttpStatusCodes.BadRequest);
+  }
+
+  return prisma.ticketPricing.delete({
+    where: { id, type: "sectioned" },
+  });
 };
 
 export const deleteFixedPricing = async (id) => {
-  return await prisma.ticketPricing.delete({ where: { id, type: "fixed" } });
+  const inUse = await prisma.showSchedule.findFirst({
+    where: { ticketPricingId: id },
+    select: { scheduleId: true },
+  });
+
+  if (inUse) {
+    throw new AppError("Cannot delete: This fixed pricing is already used by a schedule.", HttpStatusCodes.BadRequest);
+  }
+
+  return prisma.ticketPricing.delete({
+    where: { id, type: "fixed" },
+  });
 };
 
 export const getTicketPricings = async () => {
