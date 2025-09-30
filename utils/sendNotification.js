@@ -1,12 +1,19 @@
 import { getUserRoles } from "../services/accounts.service.js";
 import { getDepartmentTrainer } from "../services/department.service.js";
 import { createNotification, getCcaHeadIds, getTrainerIds } from "../services/notification.service.js";
+import dayjs from "dayjs";
+import prisma from "./primsa.connection.js";
 
 export const ShowNotificationAction = Object.freeze({
   CREATE: "createShow",
   ARCHIVE: "archiveShow",
   UNARCHIVE: "unarchiveShow",
   DELETE: "deleteShow",
+});
+
+export const DistributorNotification = Object.freeze({
+  SOLD: "soldTicket",
+  UNSOLD: "unsoldTicket",
 });
 
 export const sendShowNotification = async ({ actionBy, showId, showTitle, showType, department, action, name }) => {
@@ -80,5 +87,76 @@ export const sendShowNotification = async ({ actionBy, showId, showTitle, showTy
     }
   } catch (err) {
     console.error("Failed to send notification:", err);
+  }
+};
+export const sendDistributorActivityNotification = async ({ actionBy, distributorId, scheduleId, customerMetaData = [], totalTickets, action }) => {
+  try {
+    const distributor = await prisma.user.findUnique({ where: { userId: distributorId } });
+    if (!distributor) return;
+
+    const schedule = await prisma.showSchedule.findUnique({
+      where: { scheduleId },
+      select: {
+        show: { select: { showId: true, title: true, showType: true, departmentId: true } },
+        datetime: true,
+      },
+    });
+    if (!schedule) return;
+
+    const headIds = await getCcaHeadIds();
+    let trainerIds = [];
+    if (schedule.show.showType === "majorProduction") {
+      trainerIds = await getTrainerIds();
+    } else {
+      const trainer = await getDepartmentTrainer(schedule.show.departmentId);
+      if (trainer) trainerIds.push(trainer.id);
+    }
+    const recipientIds = [...new Set([...headIds, ...trainerIds])];
+    if (!recipientIds.length) return;
+
+    const formattedDate = dayjs(schedule.datetime).format("ddd, MMM D, YYYY hh:mm A");
+
+    let notificationMessage = "";
+    if (customerMetaData.length > 0) {
+      const groupedCustomers = customerMetaData
+        .filter((ticket) => ticket)
+        .reduce((acc, ticket) => {
+          const name = ticket.customerName || "No Customer Info";
+          const email = ticket.customerEmail || null;
+
+          if (!acc[name]) acc[name] = { customerName: name, customerEmail: email, ticketCount: 0 };
+          acc[name].ticketCount += 1;
+
+          return acc;
+        }, {});
+
+      const groupedMetaData = Object.values(groupedCustomers);
+      const customerMessages = groupedMetaData.map((c) => `${c.customerName}${c.customerEmail ? `, Email: ${c.customerEmail}` : ""}`);
+
+      notificationMessage =
+        action === DistributorNotification.SOLD
+          ? `${distributor.firstName} ${distributor.lastName} sold ${totalTickets} ticket(s) for "${
+              schedule.show.title
+            }" scheduled at ${formattedDate}:\n${customerMessages.join("\n")}`
+          : `${distributor.firstName} ${distributor.lastName} marked ${totalTickets} ticket(s) as unsold for "${
+              schedule.show.title
+            }" scheduled at ${formattedDate}:\n${customerMessages.join("\n")}`;
+    } else {
+      notificationMessage =
+        action === DistributorNotification.SOLD
+          ? `${distributor.firstName} ${distributor.lastName} sold ${totalTickets} ticket(s) for "${schedule.show.title}" scheduled at ${formattedDate} without customer information.`
+          : `${distributor.firstName} ${distributor.lastName} marked ${totalTickets} ticket(s) as unsold for "${schedule.show.title}" scheduled at ${formattedDate} without customer information.`;
+    }
+
+    createNotification({
+      senderId: actionBy,
+      title: action === DistributorNotification.SOLD ? "Tickets Sold by Distributor" : "Tickets Marked Unsold",
+      type: action,
+      message: notificationMessage,
+      metaData: { scheduleId, showId: schedule.show.showId },
+      recipientIds,
+    }).catch((err) => console.error("Failed to create notification:", err));
+  } catch (err) {
+    console.error("Failed to send distributor activity notification:", err);
   }
 };

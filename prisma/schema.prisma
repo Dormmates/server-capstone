@@ -45,19 +45,7 @@ model Genre {
   showGenres ShowGenre[] @relation("ShowGenre_GenreToGenre")
 }
 
-model Notification {
-  notificationId String                 @id @db.VarChar(36)
-  senderId       String                 @db.VarChar(36)
-  message        String                 @db.Text
-  title          String                 @db.VarChar(46)
-  sentAt         DateTime?              @default(now()) @db.Timestamp(0)
-  metaData       Json?
-  type           NotificationType
-  deliveries     NotificationDelivery[]
-  sender         User                   @relation("Notification_SenderToUser", fields: [senderId], references: [userId], onDelete: Cascade, map: "notifications_ibfk_1")
 
-  @@index([senderId], map: "notification_fk1_idx")
-}
 
 model Reservation {
   reservationId     String             @id @db.VarChar(36)
@@ -190,6 +178,16 @@ model User {
   roles          UserRole[]
 }
 
+
+model UserRole {
+  userId String       @db.VarChar(36)
+  role   UserRoleRole
+  user   User         @relation(fields: [userId], references: [userId], onDelete: Cascade, map: "fk_1")
+
+  @@id([userId, role])
+  @@index([role], map: "roles")
+}
+
 model ReservedTicket {
   reservationId String      @db.VarChar(36)
   ticketId      String      @db.VarChar(36)
@@ -200,15 +198,7 @@ model ReservedTicket {
   @@index([ticketId], map: "ticket_idx")
 }
 
-model TicketLog {
-  actionLogId String          @db.VarChar(36)
-  ticketId    String          @db.VarChar(36)
-  action      TicketActionLog @relation(fields: [actionLogId], references: [actionLogId], onDelete: Cascade, map: "action_fk1")
-  ticket      Ticket          @relation(fields: [ticketId], references: [ticketId], onDelete: Cascade, map: "ticket_fk2")
 
-  @@id([actionLogId, ticketId])
-  @@index([ticketId], map: "ticket_fk2_idx")
-}
 
 model TicketActionLog {
   actionLogId     String           @id @db.VarChar(36)
@@ -221,6 +211,7 @@ model TicketActionLog {
   commission      Decimal?         @db.Decimal(10, 2)
   actionType      TicketActionType
   logs            TicketLog[]
+  metaData        Json?
   actionByUser    User             @relation("TicketActionLog_ByUser", fields: [actionBy], references: [userId], map: "actionby_fk3")
   distributor     User             @relation("TicketActionLog_Distributor", fields: [distributorId], references: [userId], map: "distributor_fk2")
   schedule        ShowSchedule     @relation(fields: [scheduleId], references: [scheduleId], onDelete: Cascade, map: "schedule_fk1")
@@ -230,13 +221,28 @@ model TicketActionLog {
   @@index([scheduleId], map: "schedule_fk1_idx")
 }
 
-model UserRole {
-  userId String       @db.VarChar(36)
-  role   UserRoleRole
-  user   User         @relation(fields: [userId], references: [userId], onDelete: Cascade, map: "fk_1")
+model TicketLog {
+  actionLogId String          @db.VarChar(36)
+  ticketId    String          @db.VarChar(36)
+  action      TicketActionLog @relation(fields: [actionLogId], references: [actionLogId], onDelete: Cascade, map: "action_fk1")
+  ticket      Ticket          @relation(fields: [ticketId], references: [ticketId], onDelete: Cascade, map: "ticket_fk2")
 
-  @@id([userId, role])
-  @@index([role], map: "roles")
+  @@id([actionLogId, ticketId])
+  @@index([ticketId], map: "ticket_fk2_idx")
+}
+
+model Notification {
+  notificationId String                 @id @db.VarChar(36)
+  senderId       String                 @db.VarChar(36)
+  message        String                 @db.Text
+  title          String                 @db.VarChar(46)
+  sentAt         DateTime?              @default(now()) @db.Timestamp(0)
+  metaData       Json?
+  type           NotificationType
+  deliveries     NotificationDelivery[]
+  sender         User                   @relation("Notification_SenderToUser", fields: [senderId], references: [userId], onDelete: Cascade, map: "notifications_ibfk_1")
+
+  @@index([senderId], map: "notification_fk1_idx")
 }
 
 model NotificationDelivery {
@@ -313,6 +319,8 @@ enum TicketActionType {
   unallocate
   remit
   unremit
+  soldTicket
+  unsoldTicket
 }
 
 enum TicketSection {

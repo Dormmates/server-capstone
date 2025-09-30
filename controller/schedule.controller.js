@@ -15,6 +15,7 @@ import {
   copySchedule,
   deleteSchedule,
   generateScheduleTicketsAndSeats,
+  getDistributorTicketActivities,
   getScheduleDetails,
   getScheduleDistributors,
   getScheduleSeatMap,
@@ -293,13 +294,13 @@ export const getDistributorTicketsSummaryController = asyncHandler(async (req, r
 });
 
 export const markTicketAsSoldController = asyncHandler(async (req, res, next) => {
-  const { scheduleId, controlNumbers, distributorId, customerName, email, isIncluded } = req.body;
+  const { scheduleId, controlNumbers, distributorId, customerName, email } = req.body;
 
   if (!scheduleId || !distributorId || !controlNumbers) {
     throw new AppError("Missing Post Fields", HttpStatusCodes.BadRequest);
   }
 
-  await markTicketAsSold({ scheduleId, controlNumbers, distributorId });
+  await markTicketAsSold({ scheduleId, controlNumbers, distributorId, customerName, email });
   res.json({ message: "Marked as sold" });
 });
 
@@ -356,4 +357,15 @@ export const getTallyDataController = asyncHandler(async (req, res, next) => {
 
   const data = await getTallyData(scheduleId);
   res.json(data);
+});
+
+export const getDistributorTicketActivitiesController = asyncHandler(async (req, res) => {
+  const { scheduleId } = req.params;
+
+  if (!scheduleId) {
+    throw new AppError("Missing Query Fields", HttpStatusCodes.BadRequest);
+  }
+
+  const logs = await getDistributorTicketActivities(scheduleId);
+  res.json(logs);
 });

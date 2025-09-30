@@ -31,15 +31,17 @@ export const createShowController = asyncHandler(async (req, res, next) => {
   const newShow = await createShow({ showTitle, coverImage: imageUrl, description, department, genre: cleanedGenres, createdBy, showType });
   const genreNames = newShow?.genres.map((g) => g.genreFk.name);
 
-  sendShowNotification({
-    actionBy: createdBy,
-    showId: newShow.showId,
-    showTitle,
-    showType,
-    department,
-    action: ShowNotificationAction.CREATE,
-    name: newShow.creator.firstName + " " + newShow.creator.lastName,
-  });
+  if (newShow) {
+    sendShowNotification({
+      actionBy: createdBy,
+      showId: newShow.showId,
+      showTitle,
+      showType,
+      department,
+      action: ShowNotificationAction.CREATE,
+      name: newShow.creator.firstName + " " + newShow.creator.lastName,
+    });
+  }
 
   res.status(HttpStatusCodes.OK).json({ ...newShow, genreNames });
 });
@@ -134,15 +136,17 @@ export const archiveShowController = asyncHandler(async (req, res) => {
 
   const show = await archiveShow(showId);
 
-  await sendShowNotification({
-    actionBy: actionById,
-    showId: show.showId,
-    showTitle: show.title,
-    showType: show.showType,
-    department: show.departmentId,
-    action: ShowNotificationAction.ARCHIVE,
-    name: actionByName,
-  });
+  if (show) {
+    sendShowNotification({
+      actionBy: actionById,
+      showId: show.showId,
+      showTitle: show.title,
+      showType: show.showType,
+      department: show.departmentId,
+      action: ShowNotificationAction.ARCHIVE,
+      name: actionByName,
+    });
+  }
 
   res.status(HttpStatusCodes.OK).json({ message: "Show archived successfully." });
 });
@@ -161,15 +165,17 @@ export const unArchiveShowController = asyncHandler(async (req, res) => {
   }
   const show = await unArchiveShow(showId);
 
-  await sendShowNotification({
-    actionBy: actionById,
-    showId: show.showId,
-    showTitle: show.title,
-    showType: show.showType,
-    department: show.departmentId,
-    action: ShowNotificationAction.UNARCHIVE,
-    name: actionByName,
-  });
+  if (show) {
+    sendShowNotification({
+      actionBy: actionById,
+      showId: show.showId,
+      showTitle: show.title,
+      showType: show.showType,
+      department: show.departmentId,
+      action: ShowNotificationAction.UNARCHIVE,
+      name: actionByName,
+    });
+  }
 
   res.status(HttpStatusCodes.OK).json({ message: "Show unarchived successfully." });
 });
@@ -189,15 +195,17 @@ export const deleteShowController = asyncHandler(async (req, res) => {
 
   const show = await deleteShow(showId);
 
-  await sendShowNotification({
-    actionBy: actionById,
-    showId: show.showId,
-    showTitle: show.title,
-    showType: show.showType,
-    department: show.departmentId,
-    action: ShowNotificationAction.DELETE,
-    name: actionByName,
-  });
+  if (show) {
+    sendShowNotification({
+      actionBy: actionById,
+      showId: show.showId,
+      showTitle: show.title,
+      showType: show.showType,
+      department: show.departmentId,
+      action: ShowNotificationAction.DELETE,
+      name: actionByName,
+    });
+  }
 
   res.status(HttpStatusCodes.OK).json({ message: "Show deleted successfully." });
 });

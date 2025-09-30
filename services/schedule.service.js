@@ -1180,3 +1180,32 @@ export const addTallyData = async ({ femaleCount, maleCount, scheduleId }) => {
 export const getTallyData = async (scheduleId) => {
   return await prisma.showSchedule.findUnique({ where: { scheduleId }, select: { femaleCount: true, maleCount: true } });
 };
+
+export const getDistributorTicketActivities = async (scheduleId) => {
+  const logs = await prisma.ticketActionLog.findMany({
+    where: {
+      scheduleId,
+      actionType: {
+        in: ["soldTicket", "unsoldTicket"],
+      },
+    },
+    select: {
+      distributor: {
+        select: {
+          firstName: true,
+          lastName: true,
+          userId: true,
+        },
+      },
+      metaData: true,
+      actionLogId: true,
+      actionType: true,
+      actionDate: true,
+    },
+    orderBy: {
+      actionDate: "desc",
+    },
+  });
+
+  return logs;
+};

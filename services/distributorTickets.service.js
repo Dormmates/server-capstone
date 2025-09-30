@@ -1,5 +1,7 @@
 import { AppError } from "../middleware/errorHandler.middleware.js";
 import prisma from "../utils/primsa.connection.js";
+import { pusher } from "../utils/pusher.instance.js";
+import { DistributorNotification, sendDistributorActivityNotification } from "../utils/sendNotification.js";
 
 // Get allocated tickets for a distributor
 export const getDistributorAllocatedTickets = async ({ distributorId, scheduleId }) => {
@@ -242,40 +244,78 @@ export const getDistributorShowsAndTicketsAllocated = async ({ distributorId }) 
 };
 
 // Mark tickets as sold
-export const markTicketAsSold = async ({ distributorId, scheduleId, controlNumbers, customerName, email, isIncluded }) => {
-  await prisma.$transaction(async (tx) => {
+export const markTicketAsSold = async ({ distributorId, scheduleId, controlNumbers, customerName = null, email = null }) => {
+  const result = await prisma.$transaction(async (tx) => {
     const ticketsToUpdate = await tx.ticket.findMany({
       where: { distributorId, scheduleId, controlNumber: { in: controlNumbers } },
-      select: { ticketId: true },
+      select: { ticketId: true, controlNumber: true },
     });
 
     if (!ticketsToUpdate.length) throw new AppError("No tickets found to mark as sold");
 
-    const updateData = { status: "sold" };
-
-    if (isIncluded) {
-      updateData.customerName = customerName;
-      updateData.customerEmail = email;
-    }
-
     await tx.ticket.updateMany({
       where: { ticketId: { in: ticketsToUpdate.map((t) => t.ticketId) } },
-      data: updateData,
+      data: {
+        status: "sold",
+        customerName,
+        customerEmail: email,
+      },
     });
 
     await tx.showSeat.updateMany({
       where: { scheduleId, ticketId: { in: ticketsToUpdate.map((t) => t.ticketId) } },
       data: { status: "sold" },
     });
+
+    await tx.ticketActionLog.create({
+      data: {
+        actionLogId: crypto.randomUUID(),
+        scheduleId,
+        distributorId,
+        actionBy: distributorId,
+        actionDate: new Date(),
+        actionType: "soldTicket",
+        logs: {
+          create: ticketsToUpdate.map((ticket) => ({
+            ticketId: ticket.ticketId,
+          })),
+        },
+        metaData: ticketsToUpdate.map((ticket) => ({
+          ticketId: ticket.ticketId,
+          controlNumber: ticket.controlNumber,
+          customerName,
+          customerEmail: email,
+        })),
+      },
+    });
+
+    return ticketsToUpdate;
   });
+
+  if (result) {
+    const customerMetaData = [
+      {
+        customerName: customerName || "No Customer Info",
+        customerEmail: email || null,
+      },
+    ];
+
+    sendDistributorActivityNotification({
+      actionBy: distributorId,
+      distributorId,
+      scheduleId,
+      customerMetaData,
+      totalTickets: result.length,
+      action: DistributorNotification.SOLD,
+    });
+  }
 };
 
-// Mark tickets as unsold
 export const markTicketAsUnSold = async ({ distributorId, scheduleId, controlNumbers }) => {
-  await prisma.$transaction(async (tx) => {
+  const result = await prisma.$transaction(async (tx) => {
     const ticketsToUpdate = await tx.ticket.findMany({
       where: { distributorId, scheduleId, controlNumber: { in: controlNumbers } },
-      select: { ticketId: true },
+      select: { ticketId: true, customerEmail: true, customerName: true, controlNumber: true },
     });
 
     if (!ticketsToUpdate.length) throw new AppError("No tickets found to mark as unsold");
@@ -289,5 +329,50 @@ export const markTicketAsUnSold = async ({ distributorId, scheduleId, controlNum
       where: { scheduleId, ticketId: { in: ticketsToUpdate.map((t) => t.ticketId) } },
       data: { status: "reserved" },
     });
+
+    const unsoldMeta = ticketsToUpdate.map((t) => ({
+      ticketId: t.ticketId,
+      controlNumber: t.controlNumber,
+      previousCustomerName: t.customerName,
+      previousCustomerEmail: t.customerEmail,
+      actionByDistributorId: distributorId,
+    }));
+
+    await tx.ticketActionLog.create({
+      data: {
+        actionLogId: crypto.randomUUID(),
+        scheduleId,
+        distributorId,
+        actionBy: distributorId,
+        actionDate: new Date(),
+        actionType: "unsoldTicket",
+        logs: {
+          create: ticketsToUpdate.map((ticket) => ({
+            ticketId: ticket.ticketId,
+          })),
+        },
+        metaData: unsoldMeta,
+      },
+    });
+
+    return ticketsToUpdate;
   });
+
+  if (result) {
+    const customerMetaData = result
+      .filter((t) => t.customerName || t.customerEmail)
+      .map((t) => ({
+        customerName: t.customerName || "No Customer Info",
+        customerEmail: t.customerEmail || null,
+      }));
+
+    sendDistributorActivityNotification({
+      actionBy: distributorId,
+      distributorId,
+      scheduleId,
+      customerMetaData,
+      totalTickets: result.length,
+      action: DistributorNotification.UNSOLD,
+    });
+  }
 };

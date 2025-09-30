@@ -9,6 +9,7 @@ import {
   getAllDistributorRemittanceHistoryController,
   getDistributorAllocationHistoryController,
   getDistributorRemittanceHistoryController,
+  getDistributorTicketActivitiesController,
   getDistributorTicketsSummaryController,
   getScheduleDistributorsController,
   getScheduleInfoController,
@@ -52,6 +53,8 @@ router.get("/:scheduleId/remittanceHistory/:distributorId", getDistributorRemitt
 router.get("/remittanceHistory/:distributorId", getAllDistributorRemittanceHistoryController);
 router.get("/:scheduleId/ticketSummary/:distributorId", getDistributorTicketsSummaryController);
 router.get("/tallyData/:scheduleId", verifyAuth, requireRole("head", "trainer"), getTallyDataController);
+
+router.get("/logs/distributorActivites/:scheduleId", verifyAuth, getDistributorTicketActivitiesController);
 
 router.post("/", verifyAuth, requireRole("head", "trainer"), addShowScheduleController);
 router.post("/allocate/controlNumber", verifyAuth, requireRole("head", "trainer"), allocateTicketController);
