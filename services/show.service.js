@@ -264,7 +264,7 @@ export const generateSalesReport = async (showId, scheduleIds) => {
   for (const schedule of show.schedules) {
     const tickets = schedule.tickets ?? [];
     const commissionFeePct = schedule.ticketPricing ? toNumber(schedule.ticketPricing.commissionFee) : 0;
-    const { ticketPricing, ticket, ...rest } = schedule;
+    const { ticket, ...rest } = schedule;
 
     const scheduleTotals = {
       schedule: { ...rest },

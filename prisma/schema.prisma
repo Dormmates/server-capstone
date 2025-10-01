@@ -24,9 +24,9 @@ model Distributor {
   distributorTypeId Int
   departmentId      String?         @db.VarChar(36)
   contactNumber     String          @db.VarChar(20)
-  user              User            @relation(fields: [userId], references: [userId], onDelete: Cascade, map: "distributor_ibfk_1")
-  distributorType   DistributorType @relation(fields: [distributorTypeId], references: [id], onDelete: Cascade, map: "distributor_ibfk_2")
-  department        Department?     @relation(fields: [departmentId], references: [departmentId], onDelete: Cascade, map: "distributor_ibfk_3")
+  user              User            @relation(fields: [userId], references: [userId], onDelete: Restrict, map: "distributor_ibfk_1")
+  distributorType   DistributorType @relation(fields: [distributorTypeId], references: [id], onDelete: Restrict, map: "distributor_ibfk_2")
+  department        Department?     @relation(fields: [departmentId], references: [departmentId], onDelete: Restrict, map: "distributor_ibfk_3")
 
   @@id([userId, distributorTypeId])
   @@index([distributorTypeId], map: "distributor_ibfk_2")
@@ -44,7 +44,6 @@ model Genre {
   name       String      @id @db.VarChar(100)
   showGenres ShowGenre[] @relation("ShowGenre_GenreToGenre")
 }
-
 
 
 model Reservation {
@@ -71,7 +70,7 @@ model ShowGenre {
   showId  String @db.VarChar(36)
   genre   String @db.VarChar(100)
   show    Show   @relation(fields: [showId], references: [showId], onDelete: Cascade, map: "showgenre_ibfk_1")
-  genreFk Genre  @relation("ShowGenre_GenreToGenre", fields: [genre], references: [name], onDelete: Cascade, map: "showgenre_ibfk_2")
+  genreFk Genre  @relation("ShowGenre_GenreToGenre", fields: [genre], references: [name], onDelete: Restrict, map: "showgenre_ibfk_2")
 
   @@id([showId, genre])
   @@index([genre], map: "showgenre_ibfk_2_idx")
@@ -88,8 +87,8 @@ model Show {
   isArchived   Boolean        @default(false)
   showCover    String         @db.Text
   genres       ShowGenre[]
-  department   Department?    @relation(fields: [departmentId], references: [departmentId], onDelete: Cascade, map: "shows_ibfk_1")
-  creator      User           @relation(fields: [createdBy], references: [userId], map: "shows_ibfk_2")
+  department   Department?    @relation(fields: [departmentId], references: [departmentId], onDelete: Restrict, map: "shows_ibfk_1")
+  creator      User           @relation(fields: [createdBy], references: [userId], onDelete: Restrict, map: "shows_ibfk_2")
   schedules    ShowSchedule[]
 
   @@index([departmentId], map: "shows_ibfk_1")
@@ -110,7 +109,7 @@ model ShowSchedule {
   datetime        DateTime          @db.DateTime(0)
   ticketPricingId String?           @db.VarChar(36)
   reservations    Reservation[]
-  ticketPricing   TicketPricing?    @relation(fields: [ticketPricingId], references: [id], onUpdate: Restrict, map: "fk_showschedules_ticketpricing")
+  ticketPricing   TicketPricing?    @relation(fields: [ticketPricingId], references: [id], onUpdate: Restrict, onDelete: Restrict, map: "fk_showschedules_ticketpricing")
   show            Show              @relation(fields: [showId], references: [showId], onDelete: Cascade, map: "showschedules_ibfk_1")
   seats           ShowSeat[]
   tickets         Ticket[]
@@ -197,7 +196,6 @@ model ReservedTicket {
   @@id([reservationId, ticketId])
   @@index([ticketId], map: "ticket_idx")
 }
-
 
 
 model TicketActionLog {

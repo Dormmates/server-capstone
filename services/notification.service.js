@@ -11,30 +11,25 @@ export const createNotification = async ({ senderId, title, message, metaData = 
   const notificationId = crypto.randomUUID();
   const deliveryMap = {};
 
-  const [notification] = await prisma.$transaction(async (tx) => {
-    const newNotification = await tx.notification.create({
+  const deliveries = recipientIds.map((id) => {
+    const deliveryId = crypto.randomUUID();
+    deliveryMap[id] = deliveryId;
+    return {
+      id: deliveryId,
+      notificationId,
+      recipientId: id,
+    };
+  });
+
+  const [notification] = await prisma.$transaction([
+    prisma.notification.create({
       data: { notificationId, senderId, title, message, metaData, type },
       include: {
-        sender: {
-          select: { firstName: true, lastName: true },
-        },
+        sender: { select: { firstName: true, lastName: true } },
       },
-    });
-
-    const deliveries = recipientIds.map((id) => {
-      const deliveryId = crypto.randomUUID();
-      deliveryMap[id] = deliveryId;
-      return {
-        id: deliveryId,
-        notificationId,
-        recipientId: id,
-      };
-    });
-
-    await tx.notificationDelivery.createMany({ data: deliveries });
-
-    return [newNotification];
-  });
+    }),
+    prisma.notificationDelivery.createMany({ data: deliveries }),
+  ]);
 
   recipientIds.forEach((uid) => {
     if (uid === senderId) return;
@@ -53,7 +48,6 @@ export const createNotification = async ({ senderId, title, message, metaData = 
 
   return notification;
 };
-
 export const getUserNotifications = async ({ userId, cursor, limit = 30 }) => {
   const notifications = await prisma.notificationDelivery.findMany({
     where: { recipientId: userId },
