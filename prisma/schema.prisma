@@ -45,7 +45,6 @@ model Genre {
   showGenres ShowGenre[] @relation("ShowGenre_GenreToGenre")
 }
 
-
 model Reservation {
   reservationId     String             @id @db.VarChar(36)
   scheduleId        String             @db.VarChar(36)
@@ -158,25 +157,26 @@ model Ticket {
 }
 
 model User {
-  userId         String                 @id @db.VarChar(36)
-  firstName      String                 @db.VarChar(100)
-  lastName       String                 @db.VarChar(100)
-  email          String                 @unique(map: "email") @db.VarChar(150)
-  password       String                 @db.VarChar(255)
-  createdAt      DateTime               @default(now()) @db.Timestamp(0)
-  isArchived     Boolean                @default(false)
-  isLocked       Boolean                @default(false)
-  department     Department?
-  distributor    Distributor?
-  deliveries     NotificationDelivery[]
-  notifications  Notification[]         @relation("Notification_SenderToUser")
-  shows          Show[]
-  tickets        Ticket[]
-  ticketLogsBy   TicketActionLog[]      @relation("TicketActionLog_ByUser")
-  ticketLogsDist TicketActionLog[]      @relation("TicketActionLog_Distributor")
-  roles          UserRole[]
+  userId               String                 @id @db.VarChar(36)
+  firstName            String                 @db.VarChar(100)
+  lastName             String                 @db.VarChar(100)
+  email                String                 @unique(map: "email") @db.VarChar(150)
+  password             String                 @db.VarChar(255)
+  createdAt            DateTime               @default(now()) @db.Timestamp(0)
+  isArchived           Boolean                @default(false)
+  isDefaultPassword    Boolean                @default(true)
+  resetPasswordToken   String?
+  resetPasswordExpires DateTime?
+  department           Department?
+  distributor          Distributor?
+  deliveries           NotificationDelivery[]
+  notifications        Notification[]         @relation("Notification_SenderToUser")
+  shows                Show[]
+  tickets              Ticket[]
+  ticketLogsBy         TicketActionLog[]      @relation("TicketActionLog_ByUser")
+  ticketLogsDist       TicketActionLog[]      @relation("TicketActionLog_Distributor")
+  roles                UserRole[]
 }
-
 
 model UserRole {
   userId String       @db.VarChar(36)
@@ -197,11 +197,10 @@ model ReservedTicket {
   @@index([ticketId], map: "ticket_idx")
 }
 
-
 model TicketActionLog {
   actionLogId     String           @id @db.VarChar(36)
   scheduleId      String           @db.VarChar(36)
-  distributorId   String           @db.VarChar(36)
+  distributorId   String?          @db.VarChar(36)
   actionBy        String           @db.VarChar(36)
   actionDate      DateTime         @default(now()) @db.Timestamp(0)
   remarks         String?          @db.Text
@@ -211,7 +210,7 @@ model TicketActionLog {
   logs            TicketLog[]
   metaData        Json?
   actionByUser    User             @relation("TicketActionLog_ByUser", fields: [actionBy], references: [userId], map: "actionby_fk3")
-  distributor     User             @relation("TicketActionLog_Distributor", fields: [distributorId], references: [userId], map: "distributor_fk2")
+  distributor     User?            @relation("TicketActionLog_Distributor", fields: [distributorId], references: [userId], map: "distributor_fk2")
   schedule        ShowSchedule     @relation(fields: [scheduleId], references: [scheduleId], onDelete: Cascade, map: "schedule_fk1")
 
   @@index([actionBy], map: "actionby_fk3_idx")
@@ -258,13 +257,12 @@ model NotificationDelivery {
 model TicketPricing {
   id            String            @id @db.VarChar(36)
   priceName     String            @db.VarChar(45)
-  fixedPrice    Int?              
-  commissionFee Int              
+  fixedPrice    Int?
+  commissionFee Int
   sectionPrices Json?
   type          TicketPricingType
   schedules     ShowSchedule[]
 }
-
 
 enum ShowType {
   showCase
@@ -319,6 +317,7 @@ enum TicketActionType {
   unremit
   soldTicket
   unsoldTicket
+  transfer
 }
 
 enum TicketSection {

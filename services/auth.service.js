@@ -8,9 +8,11 @@ export const getUserByEmail = async (email) => {
     select: {
       password: true,
       userId: true,
+      isArchived: true,
       email: true,
       firstName: true,
       lastName: true,
+      isDefaultPassword: true,
       distributor: {
         select: {
           contactNumber: true,
@@ -54,6 +56,8 @@ export const getUserById = async (userId) => {
   const user = await prisma.user.findFirst({
     where: { userId },
     select: {
+      isDefaultPassword: true,
+      isArchived: true,
       userId: true,
       email: true,
       firstName: true,
@@ -104,7 +108,7 @@ export const login = async ({ email, password }) => {
     throw new AppError("Wrong email or password", HttpStatusCodes.Forbidden);
   }
 
-  const { password: _, isLocked, createdAt, ...safeUserData } = userData;
+  const { password: _, createdAt, ...safeUserData } = userData;
 
   return safeUserData;
 };
@@ -136,4 +140,40 @@ export const createAccount = async ({ firstName, lastName, userType, email, pass
 
   const { password: _, createdAt, isArchived, isLocked, ...data } = newAccount;
   return data;
+};
+
+export const changePassword = async ({ userId, newPassword }) => {
+  const user = await prisma.user.findUnique({ where: { userId }, select: { userId: true } });
+
+  if (!user) {
+    throw new AppError("User not found");
+  }
+
+  const hashedPassword = await hashPassword(newPassword);
+
+  return await prisma.user.update({
+    where: {
+      userId,
+    },
+    data: {
+      password: hashedPassword,
+      isDefaultPassword: false,
+    },
+  });
+};
+
+export const isPasswordCorrect = async ({ userId, password }) => {
+  const user = await prisma.user.findUnique({ where: { userId }, select: { userId: true, password: true } });
+
+  if (!user) {
+    throw new AppError("User not found");
+  }
+
+  const isPasswordValid = await verifyPassword(password, userData.password);
+
+  if (!isPasswordValid) {
+    throw new AppError("Provided wrong password", HttpStatusCodes.Forbidden);
+  }
+
+  return true;
 };

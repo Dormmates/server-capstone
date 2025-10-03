@@ -26,6 +26,7 @@ import {
   openSchedule,
   remitTicketSales,
   reschedule,
+  transferTicket,
   unallocateTicket,
   unremitTicketSales,
 } from "../services/schedule.service.js";
@@ -368,4 +369,15 @@ export const getDistributorTicketActivitiesController = asyncHandler(async (req,
 
   const logs = await getDistributorTicketActivities(scheduleId);
   res.json(logs);
+});
+
+export const transferTicketController = asyncHandler(async (req, res) => {
+  const { reason, actionBy, scheduleId, controlNumber, newScheduleId, seatNumber } = req.body;
+
+  if (!reason || !actionBy || !scheduleId || !controlNumber || !newScheduleId) {
+    throw new AppError("Missing Query Fields", HttpStatusCodes.BadRequest);
+  }
+
+  await transferTicket({ reason, actionBy, scheduleId, controlNumber, newScheduleId, seatNumber });
+  res.json({ message: "Ticket Transfered" });
 });

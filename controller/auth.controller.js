@@ -1,6 +1,6 @@
 import { asyncHandler } from "../middleware/asyncHandler.middleware.js";
 import { AppError, HttpStatusCodes } from "../middleware/errorHandler.middleware.js";
-import { login, getUserById } from "../services/auth.service.js";
+import { login, getUserById, changePassword } from "../services/auth.service.js";
 import { generateToken } from "../utils/token.utils.js";
 import { validateEmail } from "../utils/validators.js";
 
@@ -20,7 +20,7 @@ export const loginController = asyncHandler(async (req, res) => {
 
   const user = await login({ email, password });
 
-  if (user.isArchived || user.isLocked) {
+  if (user.isArchived) {
     throw new AppError("Account is locked or archived", HttpStatusCodes.Forbidden);
   }
 
@@ -52,4 +52,15 @@ export const logoutController = asyncHandler(async (req, res) => {
   });
 
   res.status(200).json({ message: "Logged out successfully" });
+});
+
+export const updatePasswordController = asyncHandler(async (req, res) => {
+  const { userId, newPassword } = req.body;
+
+  if (!userId || !newPassword) {
+    throw new AppError("Missing Post Fields");
+  }
+
+  await changePassword({ userId, newPassword });
+  res.json({ message: "Password Updated" });
 });
