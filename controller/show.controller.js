@@ -72,7 +72,7 @@ export const updateShowController = asyncHandler(async (req, res, next) => {
     showType,
   });
 
-  const genreNames = updatedShow?.showgenre.map((g) => g.genre_showgenre_genreTogenre.name);
+  const genreNames = updatedShow?.genres.map((g) => g.genreFk.name);
 
   res.status(HttpStatusCodes.Created).json({ ...updatedShow, genreNames });
 });

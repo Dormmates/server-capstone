@@ -362,7 +362,10 @@ export const deleteUserSafely = async (userId) => {
 };
 
 export const archiveUser = async (userId) => {
-  await prisma.user.update({ where: { userId }, data: { isArchived: true } });
+  await prisma.$transaction(async (tx) => {
+    await tx.user.update({ where: { userId }, data: { isArchived: true } });
+    await tx.department.update({ where: { trainerId: userId }, data: { trainerId: null } });
+  });
 };
 
 export const unArchiveUser = async (userId) => {

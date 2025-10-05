@@ -6,7 +6,10 @@ import { DistributorNotification, sendDistributorActivityNotification } from "..
 // Get allocated tickets for a distributor
 export const getDistributorAllocatedTickets = async ({ distributorId, scheduleId }) => {
   const allocatedTickets = await prisma.ticket.findMany({
-    where: { distributorId, scheduleId },
+    where: {
+      distributorId,
+      scheduleId,
+    },
     select: {
       ticketId: true,
       controlNumber: true,

@@ -127,9 +127,9 @@ export const reschedule = async ({ scheduleId, newDateTime }) => {
     throw new AppError("Schedule not found", HttpStatusCodes.NotFound);
   }
 
-  if (!schedule.isOpen) {
-    throw new AppError("Cannot reschedule a closed schedule", HttpStatusCodes.BadRequest);
-  }
+  // if (!schedule.isOpen) {
+  //   throw new AppError("Cannot reschedule a closed schedule", HttpStatusCodes.BadRequest);
+  // }
 
   const nowPH = dayjs().tz("Asia/Manila");
   const newDatePH = dayjs(newDateTime).tz("Asia/Manila");
