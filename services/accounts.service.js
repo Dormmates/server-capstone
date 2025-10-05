@@ -32,7 +32,7 @@ export const getTrainers = async () => {
   }));
 };
 
-export const getDistributors = async (departmentId, excludeCCA) => {
+export const getDistributors = async (departmentId, excludeCCA, includeOtherTypes) => {
   const distributors = await prisma.user.findMany({
     where: {
       roles: {
@@ -41,9 +41,10 @@ export const getDistributors = async (departmentId, excludeCCA) => {
       },
       ...(departmentId && {
         distributor: {
-          OR: [{ departmentId }, { departmentId: null }],
+          OR: [{ departmentId }, ...(includeOtherTypes ? [{ departmentId: null }] : [])],
         },
       }),
+
       ...(excludeCCA && {
         distributor: {
           distributorType: {

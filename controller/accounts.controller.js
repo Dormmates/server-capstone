@@ -183,9 +183,9 @@ export const updateDistributorAccountController = asyncHandler(async (req, res, 
  * Get list of Distributors
  */
 export const getDistributorsController = asyncHandler(async (req, res, next) => {
-  const { departmentId, excludeCCA } = req.query;
+  const { departmentId, excludeCCA, includeOtherTypes } = req.query;
 
-  const data = await getDistributors(departmentId, excludeCCA);
+  const data = await getDistributors(departmentId, excludeCCA, includeOtherTypes);
 
   res.json(data);
 });
