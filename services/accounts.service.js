@@ -272,7 +272,7 @@ export const editDistributorAccount = async ({ userId, firstName, lastName, emai
     }
   }
 
-  if (Number(distributorType) === 2) {
+  if (distributorType === "cca") {
     if (!departmentId) {
       throw new AppError("Department ID is required for distributor (CCA Member)", HttpStatusCodes.BadRequest);
     }
@@ -285,7 +285,7 @@ export const editDistributorAccount = async ({ userId, firstName, lastName, emai
 
   const currentDistributor = await prisma.distributor.findFirst({
     where: { userId },
-    select: { distributorTypeId: true },
+    select: { distributorType: true },
   });
 
   if (!currentDistributor) {
@@ -304,8 +304,8 @@ export const editDistributorAccount = async ({ userId, firstName, lastName, emai
           where: { userId },
           data: {
             contactNumber,
-            distributorTypeId: Number(distributorType),
-            departmentId: Number(distributorType) === 2 ? departmentId : null,
+            distributorType: distributorType,
+            departmentId: distributorType === "cca" ? departmentId : null,
           },
         },
       },
