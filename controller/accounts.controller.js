@@ -3,13 +3,14 @@ import { AppError, HttpStatusCodes } from "../middleware/errorHandler.middleware
 import {
   addCCAHeadRoles,
   archiveUser,
+  createBulkDistributorAccounts,
   createDistributorAccount,
   deleteUserSafely,
   editAccount,
   editDistributorAccount,
   getCCAHeads,
   getDistributors,
-  getDistributorTypes,
+  getEmails,
   getTrainers,
   removeCCAHeadRole,
   unArchiveUser,
@@ -114,7 +115,7 @@ export const createDistributorAccountController = asyncHandler(async (req, res, 
   let emailCheck;
 
   // CCA Member type ID on the database
-  if (distributorType == 2) {
+  if (distributorType == "cca") {
     emailCheck = validateEmail({ requiredDomain: "@slu.edu.ph", email });
 
     if (!departmentId) {
@@ -134,6 +135,21 @@ export const createDistributorAccountController = asyncHandler(async (req, res, 
 });
 
 /**
+ * Creates a new Distributor Accounts
+ */
+export const createBulkDistributorAccountsController = asyncHandler(async (req, res, next) => {
+  const { distributors, performingGroup } = req.body;
+
+  if (!distributors || !performingGroup) {
+    throw new AppError("Missing Post Fields", HttpStatusCodes.BadRequest);
+  }
+
+  const summary = await createBulkDistributorAccounts({ distributors, performingGroup });
+
+  res.status(HttpStatusCodes.Created).json(summary);
+});
+
+/**
  * Updates a Distributor Account
  */
 export const updateDistributorAccountController = asyncHandler(async (req, res, next) => {
@@ -144,7 +160,7 @@ export const updateDistributorAccountController = asyncHandler(async (req, res, 
   }
 
   let emailCheck;
-  if (Number(distributorType) === 2) {
+  if (distributorType === "cca") {
     emailCheck = validateEmail({ requiredDomain: "@slu.edu.ph", email });
 
     if (!departmentId) {
@@ -164,20 +180,12 @@ export const updateDistributorAccountController = asyncHandler(async (req, res, 
 });
 
 /**
- * Get Distributor Types
- */
-
-export const getDistributorTypesController = asyncHandler(async (req, res, next) => {
-  const types = await getDistributorTypes();
-  res.json(types);
-});
-
-/**
  * Get list of Distributors
  */
 export const getDistributorsController = asyncHandler(async (req, res, next) => {
-  const { departmentId } = req.query;
-  const data = await getDistributors(departmentId);
+  const { departmentId, excludeCCA } = req.query;
+
+  const data = await getDistributors(departmentId, excludeCCA);
 
   res.json(data);
 });
@@ -269,4 +277,9 @@ export const removeCCAHeadRoleController = asyncHandler(async (req, res) => {
 
   await removeCCAHeadRole(userId);
   res.json({ message: "Remove Role" });
+});
+
+export const getEmailsController = asyncHandler(async (req, res) => {
+  const emails = await getEmails();
+  res.json(emails.map((email) => email.email));
 });

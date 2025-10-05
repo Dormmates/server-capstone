@@ -47,8 +47,9 @@ export const getDepartmentTrainer = async (departmentId) => {
   };
 };
 
-export const getDepartments = async () => {
+export const getDepartments = async (trainerId) => {
   const departments = await prisma.department.findMany({
+    where: trainerId ? { trainerId } : undefined,
     include: {
       trainer: {
         select: {
@@ -59,6 +60,7 @@ export const getDepartments = async () => {
       _count: {
         select: {
           shows: true,
+          distributors: true,
         },
       },
     },
@@ -71,6 +73,7 @@ export const getDepartments = async () => {
     logoUrl: dep.logoUrl,
     trainerName: dep.trainer ? `${dep.trainer.firstName} ${dep.trainer.lastName}` : null,
     totalShows: dep._count.shows,
+    totalMembers: dep._count.distributors,
   }));
 
   return result;

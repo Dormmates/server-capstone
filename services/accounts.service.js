@@ -1,11 +1,8 @@
 import { AppError, HttpStatusCodes } from "../middleware/errorHandler.middleware.js";
 import { hashPassword } from "../utils/password.utils.js";
 import prisma from "../utils/primsa.connection.js";
+import { validateEmail } from "../utils/validators.js";
 import { getUserByEmail, getUserById } from "./auth.service.js";
-
-export const getDistributorTypes = async () => {
-  return await prisma.distributorType.findMany();
-};
 
 export const getTrainers = async () => {
   const trainers = await prisma.user.findMany({
@@ -35,7 +32,7 @@ export const getTrainers = async () => {
   }));
 };
 
-export const getDistributors = async (departmentId) => {
+export const getDistributors = async (departmentId, excludeCCA) => {
   const distributors = await prisma.user.findMany({
     where: {
       roles: {
@@ -45,6 +42,13 @@ export const getDistributors = async (departmentId) => {
       ...(departmentId && {
         distributor: {
           OR: [{ departmentId }, { departmentId: null }],
+        },
+      }),
+      ...(excludeCCA && {
+        distributor: {
+          distributorType: {
+            not: "cca",
+          },
         },
       }),
     },
@@ -122,6 +126,87 @@ export const editAccount = async ({ userId, firstName, lastName, email }) => {
   });
 };
 
+export const createBulkDistributorAccounts = async ({ distributors, performingGroup }) => {
+  const CHUNK_SIZE = 50; // Process 50 users per transaction
+  const TIMEOUT_MS = 60_000; // 60 seconds per chunk
+  const allResults = [];
+
+  for (let i = 0; i < distributors.length; i += CHUNK_SIZE) {
+    const chunk = distributors.slice(i, i + CHUNK_SIZE);
+
+    const chunkResults = await prisma.$transaction(
+      async (tx) => {
+        const results = [];
+
+        for (const dist of chunk) {
+          const trimmedFirst = dist.firstName.trim();
+          const trimmedLast = dist.lastName.trim();
+          const normalizedEmail = dist.email.trim().toLowerCase();
+
+          if (!validateEmail({ requiredDomain: "@slu.edu.ph", email: normalizedEmail })) {
+            results.push({
+              name: `${trimmedFirst} ${trimmedLast}`,
+              email: normalizedEmail,
+              status: "skipped (email must end with @slu.edu.ph)",
+            });
+            continue;
+          }
+
+          const existing = await tx.user.findUnique({
+            where: { email: normalizedEmail },
+          });
+
+          if (existing) {
+            results.push({
+              name: `${trimmedFirst} ${trimmedLast}`,
+              email: normalizedEmail,
+              status: "skipped (email already exists)",
+            });
+            continue;
+          }
+
+          const newUser = await tx.user.create({
+            data: {
+              userId: crypto.randomUUID(),
+              firstName: trimmedFirst,
+              lastName: trimmedLast,
+              email: normalizedEmail,
+              password: await hashPassword("123456"),
+              isDefaultPassword: true,
+              roles: {
+                create: { role: "distributor" },
+              },
+              distributor: {
+                create: {
+                  distributorType: "cca",
+                  departmentId: performingGroup,
+                  contactNumber: dist.contactNumber,
+                },
+              },
+            },
+          });
+
+          results.push({
+            name: `${trimmedFirst} ${trimmedLast}`,
+            email: newUser.email,
+            status: "created",
+          });
+        }
+
+        return results;
+      },
+      { timeout: TIMEOUT_MS }
+    );
+
+    allResults.push(...chunkResults);
+  }
+
+  return {
+    message: "Bulk distributor creation completed.",
+    summary: allResults,
+  };
+};
+
 export const createDistributorAccount = async ({ firstName, lastName, email, password, distributorType, contactNumber, departmentId }) => {
   const existingUser = await getUserByEmail(email);
 
@@ -130,11 +215,11 @@ export const createDistributorAccount = async ({ firstName, lastName, email, pas
   }
 
   const distributorData = {
-    distributorTypeId: Number(distributorType),
+    distributorType,
     contactNumber,
   };
 
-  if (Number(distributorType) === 2) {
+  if (distributorType === "cca") {
     if (!departmentId) {
       throw new AppError("Department ID is required for distributor (CCA Member)", HttpStatusCodes.BadRequest);
     }
@@ -314,4 +399,8 @@ export const removeCCAHeadRole = async (userId) => {
       },
     },
   });
+};
+
+export const getEmails = async () => {
+  return await prisma.user.findMany({ select: { email: true } });
 };

@@ -3,6 +3,7 @@ import { requireRole, verifyAuth } from "../middleware/auth.middleware.js";
 import {
   addCCAHeadRoleController,
   archiveAccountController,
+  createBulkDistributorAccountsController,
   createCCAHeadAccountController,
   createDistributorAccountController,
   createTrainerAccountController,
@@ -11,7 +12,7 @@ import {
   getCCAHeadAccountsController,
   getDistributorInformationController,
   getDistributorsController,
-  getDistributorTypesController,
+  getEmailsController,
   getTrainersController,
   removeCCAHeadRoleController,
   unArchiveAccountController,
@@ -24,10 +25,11 @@ router.get("/trainers", verifyAuth, getTrainersController);
 router.get("/heads", verifyAuth, getCCAHeadAccountsController);
 router.get("/distributors", verifyAuth, getDistributorsController);
 router.get("/distributor/:id", verifyAuth, getDistributorInformationController);
-router.get("/distributorTypes", getDistributorTypesController);
+router.get("/emails", verifyAuth, requireRole("head", "trainer"), getEmailsController);
 
 router.post("/trainer", verifyAuth, requireRole("head"), createTrainerAccountController);
 router.post("/distributor", verifyAuth, createDistributorAccountController);
+router.post("/bulk/distributor", verifyAuth, createBulkDistributorAccountsController);
 router.post("/head", verifyAuth, requireRole("head"), createCCAHeadAccountController);
 router.post("/role/head", verifyAuth, requireRole("head"), addCCAHeadRoleController);
 router.post("/role/delete/head", verifyAuth, requireRole("head"), removeCCAHeadRoleController);

@@ -21,24 +21,18 @@ model Department {
 
 model Distributor {
   userId            String          @unique(map: "userId_UNIQUE") @db.VarChar(36)
-  distributorTypeId Int
   departmentId      String?         @db.VarChar(36)
   contactNumber     String          @db.VarChar(20)
-  user              User            @relation(fields: [userId], references: [userId], onDelete: Restrict, map: "distributor_ibfk_1")
-  distributorType   DistributorType @relation(fields: [distributorTypeId], references: [id], onDelete: Restrict, map: "distributor_ibfk_2")
+  user              User            @relation(fields: [userId], references: [userId], onDelete: Cascade, map: "distributor_ibfk_1")
+  distributorType   DistributorTypes
+  hasCommission     Boolean         @default(true)
   department        Department?     @relation(fields: [departmentId], references: [departmentId], onDelete: Restrict, map: "distributor_ibfk_3")
 
-  @@id([userId, distributorTypeId])
-  @@index([distributorTypeId], map: "distributor_ibfk_2")
+  @@id([userId])
+  @@index([distributorType])
   @@index([departmentId], map: "distributor_ibfk_3")
 }
 
-model DistributorType {
-  id            Int           @id @default(autoincrement())
-  name          String        @db.VarChar(100)
-  hasCommission Boolean
-  distributors  Distributor[]
-}
 
 model Genre {
   name       String      @id @db.VarChar(100)
@@ -353,4 +347,11 @@ enum UserRoleRole {
 enum TicketPricingType {
   fixed
   sectioned
+}
+
+enum DistributorTypes {
+  cca
+  visitor
+  FOH
+  faculty
 }

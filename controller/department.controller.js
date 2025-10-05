@@ -22,7 +22,9 @@ export const createDepartmentController = asyncHandler(async (req, res, next) =>
 });
 
 export const getDepartmentListController = asyncHandler(async (req, res, next) => {
-  const departments = await getDepartments();
+  const { trainerId } = req.query;
+
+  const departments = await getDepartments(trainerId);
   res.json(departments);
 });
 

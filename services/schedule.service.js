@@ -660,7 +660,6 @@ export const allocateTicket = async ({ scheduleId, distributorId, allocatedBy, c
     const distributor = await tx.user.findFirst({
       where: {
         userId: distributorId,
-        isLocked: false,
         isArchived: false,
       },
       include: {
@@ -833,7 +832,6 @@ export const unallocateTicket = async ({ scheduleId, distributorId, unallocatedB
       where: {
         userId: distributorId,
         isArchived: false,
-        isLocked: false,
       },
       include: {
         distributor: true,
