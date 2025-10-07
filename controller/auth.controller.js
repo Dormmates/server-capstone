@@ -1,6 +1,6 @@
 import { asyncHandler } from "../middleware/asyncHandler.middleware.js";
 import { AppError, HttpStatusCodes } from "../middleware/errorHandler.middleware.js";
-import { login, getUserById, changePassword } from "../services/auth.service.js";
+import { login, getUserById, changePassword, isPasswordCorrect } from "../services/auth.service.js";
 import { generateToken } from "../utils/token.utils.js";
 import { validateEmail } from "../utils/validators.js";
 
@@ -63,4 +63,21 @@ export const updatePasswordController = asyncHandler(async (req, res) => {
 
   await changePassword({ userId, newPassword });
   res.json({ message: "Password Updated" });
+});
+
+export const changePasswordController = asyncHandler(async (req, res) => {
+  const { userId, currentPassword, newPassword } = req.body;
+
+  if (!userId || !newPassword || !currentPassword) {
+    throw new AppError("Missing Post Fields");
+  }
+
+  const isCorrectPassword = await isPasswordCorrect({ userId, password: currentPassword });
+
+  if (!isCorrectPassword) {
+    throw new AppError("Current Password is wrong");
+  }
+
+  await changePassword({ userId, newPassword });
+  res.json({ message: "Password Changed" });
 });

@@ -169,11 +169,7 @@ export const isPasswordCorrect = async ({ userId, password }) => {
     throw new AppError("User not found");
   }
 
-  const isPasswordValid = await verifyPassword(password, userData.password);
+  const isPasswordValid = await verifyPassword(password, user.password);
 
-  if (!isPasswordValid) {
-    throw new AppError("Provided wrong password", HttpStatusCodes.Forbidden);
-  }
-
-  return true;
+  return isPasswordValid;
 };
