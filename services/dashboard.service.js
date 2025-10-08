@@ -36,15 +36,7 @@ export const getTopShowsByTicketSold = async ({ departmentId = null }) => {
         select: {
           showId: true,
           title: true,
-          genres: {
-            select: {
-              genreFk: {
-                select: {
-                  name: true,
-                },
-              },
-            },
-          },
+          showType: true,
           department: {
             select: { name: true, departmentId: true },
           },
@@ -59,11 +51,9 @@ export const getTopShowsByTicketSold = async ({ departmentId = null }) => {
     return {
       showId: s.show.showId,
       showTitle: s.show.title,
-      genres: s.show.genres.map((genre) => genre.genreFk.name),
-      department: s.show.department.name,
-      departmentId: s.show.department.departmentId,
-      scheduleId: s.scheduleId,
-      dateTime: s.datetime,
+      department: s.show.department?.name ?? null,
+      showType: s.show.showType,
+      departmentId: s.show.department?.departmentId ?? null,
       soldTickets: count,
     };
   });
@@ -136,7 +126,7 @@ export const getTopShowsByTotalRevenue = async ({ departmentId } = {}) => {
       showMap.set(showId, {
         showId,
         showTitle: ticket.schedule.show.title,
-        departmentName: ticket.schedule.show.department?.name ?? null,
+        department: ticket.schedule.show.department?.name ?? null,
         showType: ticket.schedule.show.showType,
         totalRevenue: 0,
         totalCommission: 0,
