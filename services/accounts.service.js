@@ -181,7 +181,7 @@ export const createBulkDistributorAccounts = async ({ distributors, performingGr
                 create: {
                   distributorType: "cca",
                   departmentId: performingGroup,
-                  contactNumber: dist.contactNumber,
+                  contactNumber: String(dist.contactNumber).trim(),
                 },
               },
             },

@@ -16,6 +16,13 @@ export const DistributorNotification = Object.freeze({
   UNSOLD: "unsoldTicket",
 });
 
+export const DistributorTicketNotification = Object.freeze({
+  ALLOCATE: "allocate",
+  UNALLOCATE: "unallocate",
+  REMIT: "remit",
+  UNREMIT: "unremit",
+});
+
 export const sendShowNotification = async ({ actionBy, showId, showTitle, showType, department, action, name }) => {
   try {
     const creatorRoles = await getUserRoles(actionBy);
@@ -147,6 +154,42 @@ export const sendDistributorActivityNotification = async ({ actionBy, distributo
           ? `${distributor.firstName} ${distributor.lastName} sold ${totalTickets} ticket(s) for "${schedule.show.title}" scheduled at ${formattedDate} without customer information.`
           : `${distributor.firstName} ${distributor.lastName} marked ${totalTickets} ticket(s) as unsold for "${schedule.show.title}" scheduled at ${formattedDate} without customer information.`;
     }
+
+    createNotification({
+      senderId: actionBy,
+      title: action === DistributorNotification.SOLD ? "Tickets Sold by Distributor" : "Tickets Marked Unsold",
+      type: action,
+      message: notificationMessage,
+      metaData: { scheduleId, showId: schedule.show.showId },
+      recipientIds,
+    }).catch((err) => console.error("Failed to create notification:", err));
+  } catch (err) {
+    console.error("Failed to send distributor activity notification:", err);
+  }
+};
+
+export const sendTicketNotificationsToDistributor = async ({ actionBy, distributorId, scheduleId, ticketMetaData = [], totalTickets, action }) => {
+  try {
+    let notificationMessage = "You have new ticket allocation";
+
+    const distributor = await prisma.user.findUnique({ where: { userId: distributorId } });
+    if (!distributor) return;
+
+    const allocatedBy = await prisma.user.findUnique({ where: { userId: actionBy } });
+
+    if (!allocatedBy) return;
+
+    const schedule = await prisma.showSchedule.findUnique({
+      where: { scheduleId },
+      select: {
+        show: { select: { showId: true, title: true, showType: true, departmentId: true } },
+        datetime: true,
+      },
+    });
+
+    if (!schedule) return;
+
+    const formattedDate = dayjs(schedule.datetime).format("ddd, MMM D, YYYY hh:mm A");
 
     createNotification({
       senderId: actionBy,

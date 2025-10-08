@@ -4,6 +4,7 @@ import dotenv from "dotenv";
 import cookieParser from "cookie-parser";
 import authRoute from "./routes/auth.route.js";
 import { router as departmentRoute } from "./routes/department.route.js";
+import { router as dashboardRoute } from "./routes/dashboard.route.js";
 import { router as showRoute } from "./routes/show.route.js";
 import { router as scheduleRoute } from "./routes/schedule.route.js";
 import { router as genresRoute } from "./routes/genres.route.js";
@@ -41,6 +42,7 @@ app.use("/api/schedule", scheduleRoute);
 app.use("/api/genres", genresRoute);
 app.use("/api/pricing", ticketPricingRouter);
 app.use("/api/notification", notifcationRouter);
+app.use("/api/dashboard", dashboardRoute);
 app.use("/api/cron", cronRoute);
 
 app.get("/", (req, res) => {

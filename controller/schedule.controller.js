@@ -211,6 +211,11 @@ export const allocateTicketController = asyncHandler(async (req, res, next) => {
   }
 
   const response = await allocateTicket({ scheduleId, distributorId, allocatedBy, controlNumbers });
+
+  // if (response.success) {
+  //   send;
+  // }
+
   res.json(response);
 });
 
