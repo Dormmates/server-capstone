@@ -1,4 +1,12 @@
 import prisma from "../utils/primsa.connection.js";
+import dayjs from "dayjs";
+import utc from "dayjs/plugin/utc.js";
+import timezone from "dayjs/plugin/timezone.js";
+
+dayjs.extend(utc);
+dayjs.extend(timezone);
+
+dayjs.tz.setDefault("Asia/Manila");
 
 export const getTopShowsByTicketSold = async ({ departmentId = null }) => {
   const groupedTickets = await prisma.ticket.groupBy({
@@ -199,8 +207,10 @@ export const getTopShowsByGenre = async ({ departmentId }) => {
   const genreMap = new Map();
 
   for (const ticket of tickets) {
-    const show = ticket.schedule.show.title;
-    const genres = ticket.schedule.show.genres.map((g) => g.genreFk.name);
+    const show = ticket.schedule.show;
+    const showTitle = show.title;
+    const showId = show.showId;
+    const genres = show.genres.map((g) => g.genreFk.name);
 
     const hasCommission = ticket.distributor.distributor.hasCommission;
 
@@ -214,22 +224,41 @@ export const getTopShowsByGenre = async ({ departmentId }) => {
           totalTickets: 0,
           totalRevenue: 0,
           totalCommission: 0,
-          shows: new Set(),
+          shows: new Map(),
         });
       }
 
-      const record = genreMap.get(genre);
-      record.totalTickets += 1;
-      record.totalRevenue += netRevenue;
-      record.totalCommission += commissionAmount;
-      record.shows.add(show);
+      const genreRecord = genreMap.get(genre);
+      genreRecord.totalTickets += 1;
+      genreRecord.totalRevenue += netRevenue;
+      genreRecord.totalCommission += commissionAmount;
+
+      if (!genreRecord.shows.has(showId)) {
+        genreRecord.shows.set(showId, {
+          showId,
+          title: showTitle,
+          department: show.department?.name || "N/A",
+          showType: show.showType,
+          totalTickets: 0,
+          totalRevenue: 0,
+          totalCommission: 0,
+        });
+      }
+
+      const showRecord = genreRecord.shows.get(showId);
+      showRecord.totalTickets += 1;
+      showRecord.totalRevenue += netRevenue;
+      showRecord.totalCommission += commissionAmount;
     }
   }
 
   return Array.from(genreMap.values())
     .map((g) => ({
-      ...g,
-      shows: Array.from(g.shows),
+      genre: g.genre,
+      totalTickets: g.totalTickets,
+      totalRevenue: g.totalRevenue,
+      totalCommission: g.totalCommission,
+      shows: Array.from(g.shows.values()).sort((a, b) => b.totalRevenue - a.totalRevenue),
     }))
     .sort((a, b) => b.totalRevenue - a.totalRevenue)
     .slice(0, 10);
@@ -358,14 +387,140 @@ export const getTopDistributors = async ({ departmentId }) => {
   return result;
 };
 
+export const getDashboardKpiSummary = async ({ departmentId }) => {
+  const now = dayjs().tz();
+  const nextMonth = now.add(30, "day").toDate();
+
+  const whereDepartment = departmentId ? { departmentId } : {};
+
+  const [totalShows, openSchedules, closedSchedules, upcomingShows, totalDepartments, totalDistributors] = await Promise.all([
+    prisma.show.count({
+      where: {
+        isArchived: false,
+        ...whereDepartment,
+      },
+    }),
+
+    prisma.showSchedule.count({
+      where: {
+        isOpen: true,
+        show: { ...whereDepartment, isArchived: false },
+      },
+    }),
+
+    prisma.showSchedule.count({
+      where: {
+        isOpen: false,
+        show: { ...whereDepartment, isArchived: false },
+      },
+    }),
+
+    prisma.show.count({
+      where: {
+        isArchived: false,
+        ...(departmentId && {
+          OR: [
+            { departmentId },
+            {
+              departmentId: null,
+              showType: "majorProduction",
+            },
+          ],
+        }),
+        schedules: {
+          some: {
+            datetime: { gt: now.toDate(), lte: nextMonth },
+          },
+        },
+      },
+    }),
+
+    departmentId ? 0 : prisma.department.count(),
+
+    prisma.distributor.count({
+      where: { ...whereDepartment },
+    }),
+  ]);
+
+  return {
+    totalShows,
+    openSchedules,
+    closedSchedules,
+    upcomingShows,
+    totalDepartments,
+    totalDistributors,
+    generatedAt: now.format("YYYY-MM-DD HH:mm:ss"),
+  };
+};
+
+export const getUpcomingShowsSummary = async ({ departmentId, daysAhead }) => {
+  const now = dayjs().tz("Asia/Manila");
+  const endDate = daysAhead ? now.add(daysAhead, "day") : now.endOf("year");
+
+  const shows = await prisma.show.findMany({
+    where: {
+      isArchived: false,
+      ...(departmentId && {
+        OR: [
+          { departmentId },
+          {
+            departmentId: null,
+            showType: "majorProduction",
+          },
+        ],
+      }),
+      schedules: {
+        some: {
+          isOpen: true,
+          datetime: {
+            gt: now.toDate(),
+            lte: endDate.toDate(),
+          },
+        },
+      },
+    },
+    select: {
+      showId: true,
+      title: true,
+      showType: true,
+      department: { select: { name: true } },
+      genres: { select: { genreFk: { select: { name: true } } } },
+      schedules: {
+        where: {
+          isOpen: true,
+          datetime: {
+            gt: now.toDate(),
+            lte: endDate.toDate(),
+          },
+        },
+        select: { datetime: true },
+        orderBy: { datetime: "asc" },
+      },
+    },
+    orderBy: { createdAt: "asc" },
+  });
+
+  return shows
+    .map((show) => ({
+      showId: show.showId,
+      title: show.title,
+      showType: show.showType,
+      department: show.department?.name || "All Group",
+      earliestSchedule: show.schedules[0] ? dayjs(show.schedules[0].datetime).tz("Asia/Manila").format("YYYY-MM-DD hh:mm A") : null,
+      totalUpcomingSchedules: show.schedules.length,
+      genres: show.genres.map((g) => g.genreFk.name),
+    }))
+    .sort((a, b) => {
+      const dateA = dayjs(a.earliestSchedule, "YYYY-MM-DD hh:mm A");
+      const dateB = dayjs(b.earliestSchedule, "YYYY-MM-DD hh:mm A");
+      return dateA - dateB;
+    });
+};
+
 export const getShowSchedulesWithMostSales = ({ departmentId }) => {};
 
 export const getShowSalesEachMonth = ({ departmentId }) => {};
 
 export const getDepartmentPerformance = async ({ departmentId }) => {
   // aggregate total sales & revenue per department
-};
-
-export const getUpcomingShowsSummary = async ({ departmentId }) => {
-  // next N upcoming shows with dates
 };
