@@ -78,6 +78,9 @@ export const getDistributors = async (departmentId, excludeCCA, includeOtherType
         },
       },
     },
+    orderBy: {
+      lastName: "asc",
+    },
   });
 
   return distributors.map((user) => ({
