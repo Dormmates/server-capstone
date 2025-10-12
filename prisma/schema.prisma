@@ -226,7 +226,7 @@ model Notification {
   notificationId String                 @id @db.VarChar(36)
   senderId       String                 @db.VarChar(36)
   message        String                 @db.Text
-  title          String                 @db.VarChar(46)
+  title          String                 @db.VarChar(200)
   sentAt         DateTime?              @default(now()) @db.Timestamp(0)
   metaData       Json?
   type           NotificationType

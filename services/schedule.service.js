@@ -4,6 +4,7 @@ import { getDistributorAllocatedTickets } from "./distributorTickets.service.js"
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc.js";
 import timezone from "dayjs/plugin/timezone.js";
+import { DistributorTicketNotification, sendTicketNotificationsToDistributor } from "../utils/sendNotification.js";
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
@@ -546,6 +547,63 @@ export const getScheduleTickets = async (scheduleId) => {
   return mapped;
 };
 
+export const getDistributorsForTicketAllocation = async ({ departmentId, scheduleId }) => {
+  const result = await prisma.distributor.findMany({
+    where: {
+      ...(departmentId
+        ? {
+            OR: [{ departmentId }, { departmentId: null }],
+          }
+        : {}),
+      user: {
+        isArchived: false,
+      },
+    },
+    select: {
+      user: {
+        select: {
+          firstName: true,
+          userId: true,
+          lastName: true,
+          distributor: {
+            select: {
+              distributorType: true,
+              department: {
+                select: {
+                  name: true,
+                },
+              },
+            },
+          },
+          tickets: {
+            where: {
+              scheduleId,
+            },
+            select: {
+              controlNumber: true,
+              status: true,
+            },
+          },
+        },
+      },
+    },
+    orderBy: {
+      user: {
+        lastName: "asc",
+      },
+    },
+  });
+
+  return result.map((distributor) => ({
+    userId: distributor.user.userId,
+    department: distributor.user.distributor.department?.name ?? "No Department",
+    distributorType: distributor.user.distributor.distributorType,
+    firstName: distributor.user.firstName,
+    lastName: distributor.user.lastName,
+    tickets: distributor.user.tickets,
+  }));
+};
+
 export const getScheduleDistributors = async (scheduleId) => {
   // Get all distributors who have allocations for this schedule
   const distributors = await prisma.user.findMany({
@@ -561,7 +619,7 @@ export const getScheduleDistributors = async (scheduleId) => {
       distributor: {
         select: {
           department: { select: { name: true } },
-          distributorType: { select: { name: true } },
+          distributorType: true,
         },
       },
       tickets: {
@@ -572,6 +630,9 @@ export const getScheduleDistributors = async (scheduleId) => {
         },
       },
     },
+    orderBy: {
+      lastName: "asc",
+    },
   });
 
   return distributors.map((dist) => {
@@ -581,12 +642,12 @@ export const getScheduleDistributors = async (scheduleId) => {
 
     return {
       userId: dist.userId,
-      name: `${dist.firstName} ${dist.lastName}`,
+      name: `${dist.lastName}, ${dist.firstName}`,
       totalAllocated,
       totalSold,
       email: dist.email,
       department: dist.distributor?.department?.name ?? null,
-      distributorType: dist.distributor?.distributorType?.name ?? null,
+      distributorType: dist.distributor.distributorType,
     };
   });
 };
@@ -655,7 +716,7 @@ export const getScheduleSeatMap = async (scheduleId) => {
 };
 
 export const allocateTicket = async ({ scheduleId, distributorId, allocatedBy, controlNumbers }) => {
-  return await prisma.$transaction(async (tx) => {
+  const res = await prisma.$transaction(async (tx) => {
     // Validate distributor exists and is active
     const distributor = await tx.user.findFirst({
       where: {
@@ -823,10 +884,20 @@ export const allocateTicket = async ({ scheduleId, distributorId, allocatedBy, c
       message: `Successfully allocated ${validTickets.length} tickets`,
     };
   });
+
+  if (res.success) {
+    sendTicketNotificationsToDistributor({
+      actionBy: allocatedBy,
+      distributorId,
+      scheduleId,
+      totalTickets: controlNumbers.length,
+      action: DistributorTicketNotification.ALLOCATE,
+    });
+  }
 };
 
 export const unallocateTicket = async ({ scheduleId, distributorId, unallocatedBy, controlNumbers }) => {
-  return await prisma.$transaction(async (tx) => {
+  const res = await prisma.$transaction(async (tx) => {
     // Validate distributor exists and is active
     const distributor = await tx.user.findFirst({
       where: {
@@ -994,6 +1065,16 @@ export const unallocateTicket = async ({ scheduleId, distributorId, unallocatedB
       message: `Successfully unallocated ${validTickets.length} tickets`,
     };
   });
+
+  if (res.success) {
+    sendTicketNotificationsToDistributor({
+      actionBy: unallocatedBy,
+      distributorId,
+      scheduleId,
+      totalTickets: controlNumbers.length,
+      action: DistributorTicketNotification.UNALLOCATE,
+    });
+  }
 };
 
 export const remitTicketSales = async ({
@@ -1006,39 +1087,63 @@ export const remitTicketSales = async ({
   actionBy,
   remarks = null,
 }) => {
-  // Validate schedule
   const schedule = await prisma.showSchedule.findUnique({
     where: { scheduleId },
+    include: { ticketPricing: true },
   });
 
   if (!schedule) {
     throw new AppError("Provided Schedule does not exist");
   }
 
-  // Validate distributor
   const distributor = await prisma.user.findUnique({
     where: { userId: distributorId },
+    include: {
+      distributor: {
+        select: {
+          hasCommission: true,
+        },
+      },
+    },
   });
 
   if (!distributor) {
     throw new AppError("Distributor not found");
   }
 
-  // Combine all control numbers for mapping
   const allControlNumbers = [...sold, ...lost, ...discounted];
 
-  // Map controlNumber → ticketId
   const tickets = await prisma.ticket.findMany({
     where: { scheduleId, controlNumber: { in: allControlNumbers } },
-    select: { ticketId: true, controlNumber: true },
+    select: { ticketId: true, controlNumber: true, ticketPrice: true },
   });
 
   const ticketIdMap = Object.fromEntries(tickets.map((t) => [t.controlNumber, t.ticketId]));
 
+  const commissionFee = Number(schedule.ticketPricing.commissionFee);
+  const hasCommission = distributor.distributor.hasCommission ?? false;
+
+  let totalAmount = 0;
+  let totalCommission = 0;
+
+  for (const ticket of tickets) {
+    let price = Number(ticket.ticketPrice);
+
+    if (discounted.includes(ticket.controlNumber) && discountPercentage) {
+      price = price - price * (discountPercentage / 100);
+    }
+
+    totalAmount += price;
+
+    if (hasCommission) {
+      totalCommission += commissionFee;
+    }
+  }
+
   // Action log ID
   const actionLogId = crypto.randomUUID();
 
-  await prisma.$transaction(async (tx) => {
+  const res = await prisma.$transaction(async (tx) => {
     // Sold → remitted
     if (sold.length > 0) {
       await tx.ticket.updateMany({
@@ -1104,7 +1209,29 @@ export const remitTicketSales = async ({
         },
       },
     });
+
+    return true;
   });
+
+  if (res) {
+    console.log({
+      amountRemitted: totalAmount - totalCommission,
+      totalCommission,
+    });
+
+    sendTicketNotificationsToDistributor({
+      actionBy,
+      distributorId,
+      scheduleId,
+      totalTickets: allControlNumbers.length,
+      action: DistributorTicketNotification.REMIT,
+      metaData: {
+        amountRemitted: totalAmount - totalCommission,
+        totalCommission,
+        remarks,
+      },
+    });
+  }
 };
 
 export const unremitTicketSales = async ({ remittedTickets, scheduleId, distributorId, actionBy, remarks = null }) => {
@@ -1143,7 +1270,7 @@ export const unremitTicketSales = async ({ remittedTickets, scheduleId, distribu
 
   const actionLogId = crypto.randomUUID();
 
-  await prisma.$transaction(async (tx) => {
+  const res = await prisma.$transaction(async (tx) => {
     await tx.ticket.updateMany({
       where: {
         scheduleId,
@@ -1185,7 +1312,22 @@ export const unremitTicketSales = async ({ remittedTickets, scheduleId, distribu
         },
       },
     });
+
+    return true;
   });
+
+  if (res) {
+    sendTicketNotificationsToDistributor({
+      actionBy,
+      distributorId,
+      scheduleId,
+      totalTickets: remittedTickets.length,
+      action: DistributorTicketNotification.UNREMIT,
+      metaData: {
+        remarks,
+      },
+    });
+  }
 };
 
 export const addTallyData = async ({ femaleCount, maleCount, scheduleId }) => {

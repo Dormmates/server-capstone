@@ -17,10 +17,10 @@ export const DistributorNotification = Object.freeze({
 });
 
 export const DistributorTicketNotification = Object.freeze({
-  ALLOCATE: "allocate",
-  UNALLOCATE: "unallocate",
-  REMIT: "remit",
-  UNREMIT: "unremit",
+  ALLOCATE: "allocateTicket",
+  UNALLOCATE: "unallocateTicket",
+  REMIT: "remitTicket",
+  UNREMIT: "unremitTicket",
 });
 
 export const sendShowNotification = async ({ actionBy, showId, showTitle, showType, department, action, name }) => {
@@ -157,7 +157,10 @@ export const sendDistributorActivityNotification = async ({ actionBy, distributo
 
     createNotification({
       senderId: actionBy,
-      title: action === DistributorNotification.SOLD ? "Tickets Sold by Distributor" : "Tickets Marked Unsold",
+      title:
+        action === DistributorNotification.SOLD
+          ? `${distributor.lastName}, ${distributor.firstName} sold a ticket`
+          : `${distributor.lastName}, ${distributor.firstName} marks ticket as unsold`,
       type: action,
       message: notificationMessage,
       metaData: { scheduleId, showId: schedule.show.showId },
@@ -168,10 +171,8 @@ export const sendDistributorActivityNotification = async ({ actionBy, distributo
   }
 };
 
-export const sendTicketNotificationsToDistributor = async ({ actionBy, distributorId, scheduleId, ticketMetaData = [], totalTickets, action }) => {
+export const sendTicketNotificationsToDistributor = async ({ actionBy, distributorId, scheduleId, totalTickets, action, metaData = {} }) => {
   try {
-    let notificationMessage = "You have new ticket allocation";
-
     const distributor = await prisma.user.findUnique({ where: { userId: distributorId } });
     if (!distributor) return;
 
@@ -193,11 +194,54 @@ export const sendTicketNotificationsToDistributor = async ({ actionBy, distribut
 
     createNotification({
       senderId: actionBy,
-      title: action === DistributorNotification.SOLD ? "Tickets Sold by Distributor" : "Tickets Marked Unsold",
+      title: (() => {
+        switch (action) {
+          case DistributorTicketNotification.ALLOCATE:
+            return `${allocatedBy.firstName} ${allocatedBy.lastName} allocated ${totalTickets} tickets on show "${schedule.show.title}"`;
+          case DistributorTicketNotification.REMIT:
+            return `Tickets successfully remitted on show "${schedule.show.title}" to ${allocatedBy.firstName} ${allocatedBy.lastName}`;
+          case DistributorTicketNotification.UNALLOCATE:
+            return `${allocatedBy.firstName} ${allocatedBy.lastName} unallocated ${totalTickets} tickets from you on show "${schedule.show.title}"`;
+          case DistributorTicketNotification.UNREMIT:
+            return `Tickets successfully unremitted on show "${schedule.show.title}" by ${allocatedBy.firstName} ${allocatedBy.lastName}`;
+          default:
+            return "Ticket activity notification.";
+        }
+      })(),
       type: action,
-      message: notificationMessage,
-      metaData: { scheduleId, showId: schedule.show.showId },
-      recipientIds,
+      message: (() => {
+        switch (action) {
+          case DistributorTicketNotification.ALLOCATE:
+            return `${allocatedBy.firstName} ${allocatedBy.lastName} allocated ${totalTickets} tickets to you for the show "${schedule.show.title}" scheduled on ${formattedDate}.`;
+
+          case DistributorTicketNotification.REMIT:
+            return `You have successfully remitted ${totalTickets} tickets for the show "${schedule.show.title}" to ${allocatedBy.firstName} ${allocatedBy.lastName}.
+            `;
+
+          case DistributorTicketNotification.UNALLOCATE:
+            return `${allocatedBy.firstName} ${allocatedBy.lastName} has unallocated ${totalTickets} tickets from you for the show "${schedule.show.title}".`;
+
+          case DistributorTicketNotification.UNREMIT:
+            return `The remittance for ${totalTickets} tickets on show "${schedule.show.title}" has been reverted by ${allocatedBy.firstName} ${allocatedBy.lastName}.`;
+
+          default:
+            return "Ticket activity notification.";
+        }
+      })(),
+
+      metaData: {
+        scheduleId,
+        showId: schedule.show.showId,
+        ...(action === DistributorTicketNotification.REMIT && {
+          amountRemitted: metaData.amountRemitted,
+          totalCommission: metaData.totalCommission,
+          remarks: metaData.remarks,
+        }),
+        ...(action === DistributorTicketNotification.UNREMIT && {
+          remarks: metaData.remarks,
+        }),
+      },
+      recipientIds: [distributor.userId],
     }).catch((err) => console.error("Failed to create notification:", err));
   } catch (err) {
     console.error("Failed to send distributor activity notification:", err);

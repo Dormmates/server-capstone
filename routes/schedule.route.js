@@ -9,6 +9,7 @@ import {
   getAllDistributorRemittanceHistoryController,
   getDistributorAllocationHistoryController,
   getDistributorRemittanceHistoryController,
+  getDistributorsForTicketAllocationController,
   getDistributorTicketActivitiesController,
   getDistributorTicketsSummaryController,
   getScheduleDistributorsController,
@@ -49,6 +50,7 @@ router.post("/copy", verifyAuth, requireRole("head", "trainer"), copyScheduleCon
 router.get("/summary/:scheduleId", getScheudleSummaryController);
 router.get("/tickets/:scheduleId", getScheduleTicketsController);
 router.get("/distributors/:scheduleId", getScheduleDistributorsController);
+router.get("/distributors/:scheduleId/allocation", getDistributorsForTicketAllocationController);
 router.get("/seatmap/:scheduleId", getScheduleSeatMapController);
 
 //Schedule History or Log Operations

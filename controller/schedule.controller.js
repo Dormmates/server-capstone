@@ -15,6 +15,7 @@ import {
   copySchedule,
   deleteSchedule,
   generateScheduleTicketsAndSeats,
+  getDistributorsForTicketAllocation,
   getDistributorTicketActivities,
   getScheduleDetails,
   getScheduleDistributors,
@@ -201,6 +202,18 @@ export const getScheduleDistributorsController = asyncHandler(async (req, res, n
 
   const distributors = await getScheduleDistributors(scheduleId);
   res.json(distributors);
+});
+
+export const getDistributorsForTicketAllocationController = asyncHandler(async (req, res) => {
+  const { scheduleId } = req.params;
+  const { departmentId } = req.query;
+
+  if (!scheduleId) {
+    throw new AppError("Missing Post Fields", HttpStatusCodes.BadRequest);
+  }
+
+  const result = await getDistributorsForTicketAllocation({ scheduleId, departmentId });
+  res.json(result);
 });
 
 export const allocateTicketController = asyncHandler(async (req, res, next) => {

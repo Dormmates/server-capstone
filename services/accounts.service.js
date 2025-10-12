@@ -366,8 +366,8 @@ export const deleteUserSafely = async (userId) => {
 
 export const archiveUser = async (userId) => {
   await prisma.$transaction(async (tx) => {
-    await tx.user.update({ where: { userId }, data: { isArchived: true } });
-    await tx.department.update({ where: { trainerId: userId }, data: { trainerId: null } });
+    const user = await tx.user.update({ where: { userId }, data: { isArchived: true }, select: { department: true } });
+    if (user.department) await tx.department.update({ where: { trainerId: userId }, data: { trainerId: null } });
   });
 };
 
