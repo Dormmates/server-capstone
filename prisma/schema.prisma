@@ -354,4 +354,5 @@ enum DistributorTypes {
   visitor
   FOH
   faculty
+  ticketBooth
 }

@@ -547,6 +547,16 @@ export const getScheduleTickets = async (scheduleId) => {
   return mapped;
 };
 
+export const getUnallocatedTickets = async (scheduleId) => {
+  const unallocatedTickets = await prisma.ticket.findMany({
+    where: { scheduleId, status: "not_allocated" },
+    orderBy: { controlNumber: "asc" },
+    select: { controlNumber: true },
+  });
+
+  return unallocatedTickets.map((t) => t.controlNumber);
+};
+
 export const getDistributorsForTicketAllocation = async ({ departmentId, scheduleId }) => {
   const result = await prisma.distributor.findMany({
     where: {
@@ -571,6 +581,7 @@ export const getDistributorsForTicketAllocation = async ({ departmentId, schedul
               department: {
                 select: {
                   name: true,
+                  departmentId: true,
                 },
               },
             },
@@ -596,7 +607,10 @@ export const getDistributorsForTicketAllocation = async ({ departmentId, schedul
 
   return result.map((distributor) => ({
     userId: distributor.user.userId,
-    department: distributor.user.distributor.department?.name ?? "No Department",
+    department: {
+      name: distributor.user.distributor.department?.name ?? "No Department",
+      id: distributor.user.distributor.department?.departmentId ?? null,
+    },
     distributorType: distributor.user.distributor.distributorType,
     firstName: distributor.user.firstName,
     lastName: distributor.user.lastName,
@@ -618,7 +632,7 @@ export const getScheduleDistributors = async (scheduleId) => {
       email: true,
       distributor: {
         select: {
-          department: { select: { name: true } },
+          department: { select: { name: true, departmentId: true } },
           distributorType: true,
         },
       },
@@ -626,6 +640,7 @@ export const getScheduleDistributors = async (scheduleId) => {
         where: { scheduleId },
         select: {
           ticketId: true,
+          controlNumber: true,
           status: true,
         },
       },
@@ -646,7 +661,11 @@ export const getScheduleDistributors = async (scheduleId) => {
       totalAllocated,
       totalSold,
       email: dist.email,
-      department: dist.distributor?.department?.name ?? null,
+      department: {
+        name: dist.distributor?.department?.name ?? null,
+        id: dist.distributor?.department?.departmentId ?? null,
+      },
+      ticketControlNumbers: dist.tickets.map((t) => t.controlNumber),
       distributorType: dist.distributor.distributorType,
     };
   });

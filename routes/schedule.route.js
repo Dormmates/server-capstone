@@ -2,6 +2,7 @@ import express from "express";
 import {
   addShowScheduleController,
   allocateTicketController,
+  allocateTicketsToMultipleDistributorsController,
   closeScheduleController,
   copyScheduleController,
   deleteScheduleController,
@@ -65,6 +66,7 @@ router.get("/logs/distributorActivites/:scheduleId", verifyAuth, getDistributorT
 
 //Schedule Ticket Operations
 router.post("/allocate/controlNumber", verifyAuth, requireRole("head", "trainer"), allocateTicketController);
+router.post("/allocate/multiple", verifyAuth, requireRole("head", "trainer"), allocateTicketsToMultipleDistributorsController);
 router.post("/unallocate/controlNumber", verifyAuth, requireRole("head", "trainer"), unAllocateTicketController);
 router.post("/tallyData", verifyAuth, requireRole("head", "trainer"), updateTallyDataController);
 router.post("/remit", verifyAuth, requireRole("head", "trainer"), remitTicketSalesController);

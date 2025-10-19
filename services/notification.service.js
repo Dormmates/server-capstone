@@ -31,20 +31,20 @@ export const createNotification = async ({ senderId, title, message, metaData = 
     prisma.notificationDelivery.createMany({ data: deliveries }),
   ]);
 
-  recipientIds.forEach((uid) => {
-    if (uid === senderId) return;
+  // recipientIds.forEach((uid) => {
+  //   if (uid === senderId) return;
 
-    pusher.trigger(`user-${uid}`, "notification:new", {
-      notificationId: deliveryMap[uid],
-      title,
-      type,
-      message,
-      metaData,
-      readAt: null,
-      sentAt: notification.sentAt,
-      sender: `${notification.sender.firstName} ${notification.sender.lastName}`,
-    });
-  });
+  //   pusher.trigger(`user-${uid}`, "notification:new", {
+  //     notificationId: deliveryMap[uid],
+  //     title,
+  //     type,
+  //     message,
+  //     metaData,
+  //     readAt: null,
+  //     sentAt: notification.sentAt,
+  //     sender: `${notification.sender.firstName} ${notification.sender.lastName}`,
+  //   });
+  // });
 
   return notification;
 };
