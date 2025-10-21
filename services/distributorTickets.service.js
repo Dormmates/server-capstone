@@ -188,8 +188,7 @@ export const getDistributorShowsAndTicketsAllocated = async ({ distributorId }) 
       ticketId: true,
       controlNumber: true,
       ticketPrice: true,
-      ticketSection: true,
-      seats: { select: { seatNumber: true }, take: 1 },
+      seats: { select: { seatNumber: true, seatSection: true }, take: 1 },
       status: true,
       logs: { select: { action: { select: { actionType: true, actionBy: true, actionDate: true } } } },
       schedule: {
@@ -219,7 +218,7 @@ export const getDistributorShowsAndTicketsAllocated = async ({ distributorId }) 
       ticketPrice: ticket.ticketPrice,
       controlNumber: ticket.controlNumber,
       seatNumber: ticket.seats[0]?.seatNumber ?? null,
-      ticketSection: ticket.ticketSection,
+      ticketSection: ticket.seats[0]?.seatSection ?? null,
       isRemitted: ["lost", "remitted"].includes(ticket.status),
       dateAllocated: allocationLog?.action.actionDate ?? null,
       allocatedBy: allocationLog?.action.actionBy ?? null,
