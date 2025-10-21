@@ -24,6 +24,7 @@ import {
   getScheduleTickets,
   getShowSchedules,
   getTallyData,
+  getTicketLogs,
   getUnallocatedTickets,
   openSchedule,
   remitTicketSales,
@@ -192,6 +193,17 @@ export const getScheduleTicketsController = asyncHandler(async (req, res, next) 
 
   const tickets = await getScheduleTickets(scheduleId);
   res.json(tickets);
+});
+
+export const getTicketLogsController = asyncHandler(async (req, res) => {
+  const { scheduleId, controlNumber } = req.params;
+
+  if (!scheduleId || !controlNumber) {
+    throw new AppError("Missing Post Fields", HttpStatusCodes.BadRequest);
+  }
+
+  const logs = await getTicketLogs(scheduleId, controlNumber);
+  res.json(logs);
 });
 
 export const getScheduleDistributorsController = asyncHandler(async (req, res, next) => {

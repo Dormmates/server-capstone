@@ -241,6 +241,82 @@ export const copySchedule = async ({ scheduleId, newDateTime }) => {
   });
 };
 
+/**
+ * Old Version - orchestra tickets and balcony tickets are separate
+ */
+
+// export const generateScheduleTicketsAndSeats = async ({
+//   tx = prisma,
+//   scheduleId,
+//   seatPricing,
+//   seats,
+//   ticketPricing,
+//   controlNumbers,
+//   seatingConfiguration,
+// }) => {
+//   const tickets = [];
+//   const seatsData = [];
+
+//   const orchestra = controlNumbers?.orchestra || [];
+//   const balcony = controlNumbers?.balcony || [];
+//   const complimentary = controlNumbers?.complimentary || [];
+
+//   const isControlled = seatingConfiguration === "controlledSeating";
+//   const isFixedPrice = seatPricing === "fixed";
+
+//   const createTicketAndLinkSeat = (num, ticketSection, complimentaryTicket = false) => {
+//     let price = ticketPricing.fixedPrice;
+//     let seat = null;
+
+//     if (isControlled) {
+//       seat = seats.find((s) => s.ticketControlNumber === num);
+//       if (!seat) throw new AppError(`No matching seat for control number ${num}`);
+//       if (!isFixedPrice && !complimentaryTicket) price = seat.ticketPrice;
+//     }
+
+//     const ticketId = crypto.randomUUID();
+
+//     tickets.push({
+//       ticketId,
+//       scheduleId,
+//       controlNumber: num,
+//       ticketPrice: complimentaryTicket ? 0 : price,
+//       isComplimentary: complimentaryTicket,
+//       ticketSection,
+//     });
+
+//     if (seat) {
+//       const seatIndex = seatsData.findIndex((s) => s.seatNumber === seat.seatNumber);
+//       if (seatIndex !== -1) {
+//         seatsData[seatIndex].ticketId = ticketId;
+//       }
+//     }
+//   };
+
+//   if (isControlled) {
+//     seats.forEach((s) => {
+//       seatsData.push({
+//         scheduleId,
+//         seatNumber: s.seatNumber,
+//         seatSection: s.section,
+//         rotation: s.rotation,
+//         x: s.x,
+//         y: s.y,
+//         ticketId: null,
+//       });
+//     });
+//   }
+
+//   orchestra.forEach((num) => createTicketAndLinkSeat(num, "orchestra"));
+//   balcony.forEach((num) => createTicketAndLinkSeat(num, "balcony"));
+//   complimentary.forEach((num) => createTicketAndLinkSeat(num, null, true));
+
+//   await tx.ticket.createMany({ data: tickets });
+//   await tx.showSeat.createMany({ data: seatsData });
+
+//   return tickets;
+// };
+
 export const generateScheduleTicketsAndSeats = async ({
   tx = prisma,
   scheduleId,
@@ -253,14 +329,13 @@ export const generateScheduleTicketsAndSeats = async ({
   const tickets = [];
   const seatsData = [];
 
-  const orchestra = controlNumbers?.orchestra || [];
-  const balcony = controlNumbers?.balcony || [];
+  const allTickets = controlNumbers?.tickets || [];
   const complimentary = controlNumbers?.complimentary || [];
 
   const isControlled = seatingConfiguration === "controlledSeating";
   const isFixedPrice = seatPricing === "fixed";
 
-  const createTicketAndLinkSeat = (num, ticketSection, complimentaryTicket = false) => {
+  const createTicketAndLinkSeat = (num, complimentaryTicket = false) => {
     let price = ticketPricing.fixedPrice;
     let seat = null;
 
@@ -278,7 +353,6 @@ export const generateScheduleTicketsAndSeats = async ({
       controlNumber: num,
       ticketPrice: complimentaryTicket ? 0 : price,
       isComplimentary: complimentaryTicket,
-      ticketSection,
     });
 
     if (seat) {
@@ -303,9 +377,8 @@ export const generateScheduleTicketsAndSeats = async ({
     });
   }
 
-  orchestra.forEach((num) => createTicketAndLinkSeat(num, "orchestra"));
-  balcony.forEach((num) => createTicketAndLinkSeat(num, "balcony"));
-  complimentary.forEach((num) => createTicketAndLinkSeat(num, null, true));
+  allTickets.forEach((num) => createTicketAndLinkSeat(num));
+  complimentary.forEach((num) => createTicketAndLinkSeat(num, true));
 
   await tx.ticket.createMany({ data: tickets });
   await tx.showSeat.createMany({ data: seatsData });
@@ -362,15 +435,30 @@ export const getScheduleSummary = async (scheduleId) => {
           acc.remaining += 1;
         }
 
+        if (["not_allocated"].includes(t.status)) {
+          acc.notAllocated += 1;
+        }
+
+        if (["allocated"].includes(t.status)) {
+          acc.allocated += 1;
+        }
+
+        if (["sold", "allocated"].includes(t.status)) {
+          acc.unremitted += 1;
+        }
+
+        if (["remitted"].includes(t.status)) {
+          acc.remitted += 1;
+        }
+
         return acc;
       },
-      { total: 0, sold: 0, remaining: 0 }
+      { total: 0, sold: 0, remaining: 0, notAllocated: 0, allocated: 0, unremitted: 0, remitted: 0 }
     );
   };
 
   const complimentaryTickets = scheduleTickets.filter((t) => t.isComplimentary).length;
-  const balconyTickets = summarizeTickets(scheduleTickets.filter((t) => t.ticketSection === "balcony" && !t.isComplimentary));
-  const orchestraTickets = summarizeTickets(scheduleTickets.filter((t) => t.ticketSection === "orchestra" && !t.isComplimentary));
+  const regularTickets = summarizeTickets(scheduleTickets.filter((t) => !t.isComplimentary));
 
   // Distributor Summary
   const distributors = await prisma.user.findMany({
@@ -475,8 +563,8 @@ export const getScheduleSummary = async (scheduleId) => {
   const grossCurrent = currentAgg._sum.ticketPrice || 0;
 
   // commission totals
-  const commissionExpected = schedule.ticketPricing.commissionFee * (balconyTickets.total + orchestraTickets.total);
-  const commissionCurrent = schedule.ticketPricing.commissionFee * (balconyTickets.sold + orchestraTickets.sold);
+  const commissionExpected = schedule.ticketPricing.commissionFee * regularTickets.total;
+  const commissionCurrent = schedule.ticketPricing.commissionFee * regularTickets.sold;
 
   // net values
   const expectedSales = grossExpected - commissionExpected;
@@ -487,8 +575,7 @@ export const getScheduleSummary = async (scheduleId) => {
     ticketsSummary: {
       total: scheduleTickets.length,
       complimentary: complimentaryTickets,
-      orchestraTickets,
-      balconyTickets,
+      regularTickets,
     },
     distributorSummary: {
       distributors: mappedDistributors,
@@ -498,7 +585,7 @@ export const getScheduleSummary = async (scheduleId) => {
       expected: expectedSales,
       current: currentSales,
       remaining: remainingSales,
-      netAfterCommission: currentSales - schedule.commissionFee * (orchestraTickets.sold + balconyTickets.sold),
+      netAfterCommission: currentSales - schedule.commissionFee * (regularTickets.sold + regularTickets.sold),
     },
     schedulePrices: {
       ticketPrice,
@@ -517,6 +604,7 @@ export const getScheduleTickets = async (scheduleId) => {
       seats: {
         select: {
           seatNumber: true,
+          seatSection: true,
         },
         take: 1,
       },
@@ -539,12 +627,78 @@ export const getScheduleTickets = async (scheduleId) => {
     return {
       ...ticket,
       seatNumber: ticket.seats[0]?.seatNumber ?? null,
+      seatSection: ticket.seats[0]?.seatSection ?? null,
       isRemitted: ticket.status === "lost" || ticket.status === "sold" || ticket.status === "remitted",
       ticketTransferMetaData: transferLogs.length > 0 ? transferLogs : null,
     };
   });
 
   return mapped;
+};
+
+export const getTicketLogs = async (scheduleId, controlNumber) => {
+  const ticketLogs = await prisma.ticketActionLog.findMany({
+    where: {
+      scheduleId,
+      logs: {
+        some: {
+          ticket: {
+            controlNumber: Number(controlNumber),
+          },
+        },
+      },
+    },
+    select: {
+      actionType: true,
+      actionDate: true,
+      actionByUser: {
+        select: {
+          firstName: true,
+          lastName: true,
+        },
+      },
+      distributor: {
+        select: {
+          firstName: true,
+          lastName: true,
+        },
+      },
+      logs: {
+        where: {
+          ticket: {
+            controlNumber: Number(controlNumber),
+          },
+        },
+        select: {
+          ticket: {
+            select: {
+              distributor: {
+                select: {
+                  firstName: true,
+                  lastName: true,
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    orderBy: {
+      actionDate: "desc",
+    },
+  });
+
+  return ticketLogs.map((log) => {
+    const ticketInfo = log.logs[0]?.ticket;
+
+    return {
+      logType: log.actionType,
+      actionBy: `${log.actionByUser.firstName} ${log.actionByUser.lastName}`,
+      logDate: log.actionDate,
+      distributorName: log?.distributor ? `${log.distributor.firstName} ${log.distributor.lastName}` : "Unassigned",
+      currentDistributor: ticketInfo?.distributor ? `${ticketInfo.distributor.firstName} ${ticketInfo.distributor.lastName}` : "Unassigned",
+    };
+  });
 };
 
 export const getUnallocatedTickets = async (scheduleId) => {
@@ -651,8 +805,7 @@ export const getScheduleDistributors = async (scheduleId) => {
   });
 
   return distributors.map((dist) => {
-    const allocatedTickets = dist.tickets.filter((t) => t.status === "allocated");
-    const totalAllocated = allocatedTickets.length;
+    const totalAllocated = dist.tickets.length;
     const totalSold = dist.tickets.filter((t) => ["sold", "remitted", "lost"].includes(t.status)).length;
 
     return {

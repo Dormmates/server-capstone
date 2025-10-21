@@ -14,7 +14,6 @@ export const getDistributorAllocatedTickets = async ({ distributorId, scheduleId
       ticketId: true,
       controlNumber: true,
       ticketPrice: true,
-      ticketSection: true,
       seats: { select: { seatNumber: true, seatSection: true }, take: 1 },
       status: true,
       logs: {

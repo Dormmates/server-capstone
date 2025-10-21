@@ -333,7 +333,7 @@ export const getTopDistributors = async ({ departmentId }) => {
         userId,
         fullName,
         distributorType: dist.distributor.distributorType,
-        department: dist.distributor.department.name,
+        department: dist.distributor.department?.name ?? "No Group",
         totalTickets: 0,
         totalCommission: 0,
         totalNetRevenue: 0,

@@ -20,6 +20,7 @@ import {
   getScheudleSummaryController,
   getShowSchedulesController,
   getTallyDataController,
+  getTicketLogsController,
   getTicketsAllocatedOfDistributorController,
   markTicketAsSoldController,
   markTicketAsUnSoldController,
@@ -53,6 +54,7 @@ router.get("/tickets/:scheduleId", getScheduleTicketsController);
 router.get("/distributors/:scheduleId", getScheduleDistributorsController);
 router.get("/distributors/:scheduleId/allocation", getDistributorsForTicketAllocationController);
 router.get("/seatmap/:scheduleId", getScheduleSeatMapController);
+router.get("/ticket/logs/:scheduleId/:controlNumber", getTicketLogsController);
 
 //Schedule History or Log Operations
 router.get("/:scheduleId/ticketAllocated/:distributorId", getTicketsAllocatedOfDistributorController);

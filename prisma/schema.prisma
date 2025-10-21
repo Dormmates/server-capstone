@@ -137,7 +137,6 @@ model Ticket {
   distributorId      String?          @db.VarChar(36)
   isComplimentary    Boolean?         @default(false)
   ticketPrice        Decimal?         @db.Decimal(10, 2)
-  ticketSection      TicketSection?
   customerName       String?          @db.VarChar(45)
   customerEmail      String?          @db.VarChar(45)
   logs               TicketLog[]
@@ -148,6 +147,7 @@ model Ticket {
 
   @@index([distributorId], map: "distributorId")
   @@index([scheduleId], map: "ticket_ibfk_1_idx")
+  @@index([controlNumber], map: "ticket_controlNumber_idx")
 }
 
 model User {
@@ -314,10 +314,7 @@ enum TicketActionType {
   transfer
 }
 
-enum TicketSection {
-  orchestra
-  balcony
-}
+
 
 enum NotificationType {
   createShow
