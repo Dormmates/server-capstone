@@ -701,6 +701,36 @@ export const getTicketLogs = async (scheduleId, controlNumber) => {
   });
 };
 
+export const generateTicketInformations = async (scheduleId) => {
+  const result = await prisma.ticket.findMany({
+    where: {
+      scheduleId,
+      isComplimentary: false,
+    },
+    select: {
+      controlNumber: true,
+      status: true,
+      isComplimentary: true,
+      distributor: {
+        select: {
+          firstName: true,
+          lastName: true,
+        },
+      },
+    },
+    orderBy: {
+      controlNumber: "asc",
+    },
+  });
+
+  return result.map((ticket) => ({
+    controlNumber: ticket.controlNumber,
+    distributorName: ticket?.distributor ? ticket.distributor.firstName + " " + ticket.distributor.lastName : "No Assigned Distributor",
+    currentStatus: ticket.status,
+    isComplimentary: ticket.isComplimentary,
+  }));
+};
+
 export const getUnallocatedTickets = async (scheduleId) => {
   const unallocatedTickets = await prisma.ticket.findMany({
     where: { scheduleId, status: "not_allocated" },

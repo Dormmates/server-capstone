@@ -6,6 +6,7 @@ import {
   closeScheduleController,
   copyScheduleController,
   deleteScheduleController,
+  generateTicketInformationsController,
   getAllDistributorAllocationHistoryController,
   getAllDistributorRemittanceHistoryController,
   getDistributorAllocationHistoryController,
@@ -55,6 +56,7 @@ router.get("/distributors/:scheduleId", getScheduleDistributorsController);
 router.get("/distributors/:scheduleId/allocation", getDistributorsForTicketAllocationController);
 router.get("/seatmap/:scheduleId", getScheduleSeatMapController);
 router.get("/ticket/logs/:scheduleId/:controlNumber", getTicketLogsController);
+router.get("/ticket/informations/:scheduleId/", generateTicketInformationsController);
 
 //Schedule History or Log Operations
 router.get("/:scheduleId/ticketAllocated/:distributorId", getTicketsAllocatedOfDistributorController);
