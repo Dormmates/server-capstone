@@ -233,7 +233,15 @@ export const generateSalesReport = async (showId, scheduleIds) => {
         include: {
           tickets: {
             include: {
-              distributor: true,
+              distributor: {
+                include: {
+                  distributor: {
+                    select: {
+                      distributorType: true,
+                    },
+                  },
+                },
+              },
               seats: true,
             },
           },
@@ -364,9 +372,11 @@ export const generateSalesReport = async (showId, scheduleIds) => {
       // Distributor breakdown
       const distributorId = t.distributor ? t.distributor.userId : "online";
       const distributorName = t.distributor ? `${t.distributor.firstName} ${t.distributor.lastName}` : "Online Reservation";
+      const distributorType = t.distributor.distributor.distributorType;
 
       if (!distributorsMap.has(distributorId)) {
         distributorsMap.set(distributorId, {
+          distributorType,
           distributorId,
           distributorName,
           ticketsSold: 0,
