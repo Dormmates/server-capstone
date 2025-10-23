@@ -30,6 +30,8 @@ import {
   openSchedule,
   remitTicketSales,
   reschedule,
+  trainerSellTicket,
+  trainerUnSellTicket,
   transferTicket,
   unallocateTicket,
   unremitTicketSales,
@@ -484,4 +486,26 @@ export const transferTicketController = asyncHandler(async (req, res) => {
 
   await transferTicket({ reason, actionBy, scheduleId, controlNumber, newScheduleId, seatNumber });
   res.json({ message: "Ticket Transfered" });
+});
+
+export const trainerSellTicketController = asyncHandler(async (req, res) => {
+  const { scheduleId, controlNumber, trainerId, customerName, customerEmail } = req.body;
+
+  if (!scheduleId || !controlNumber || !trainerId) {
+    throw new AppError("Missing Query Fields", HttpStatusCodes.BadRequest);
+  }
+
+  await trainerSellTicket(scheduleId, controlNumber, trainerId, customerName, customerEmail);
+  res.json({ message: "Ticket Sold" });
+});
+
+export const trainerUnSellTicketController = asyncHandler(async (req, res) => {
+  const { scheduleId, controlNumber, trainerId } = req.body;
+
+  if (!scheduleId || !controlNumber || !trainerId) {
+    throw new AppError("Missing Query Fields", HttpStatusCodes.BadRequest);
+  }
+
+  await trainerUnSellTicket(scheduleId, controlNumber, trainerId);
+  res.json({ message: "Ticket Unsold" });
 });

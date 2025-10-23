@@ -28,6 +28,8 @@ import {
   openScheduleController,
   remitTicketSalesController,
   rescheduleController,
+  trainerSellTicketController,
+  trainerUnSellTicketController,
   transferTicketController,
   unAllocateTicketController,
   unRemitTicketSalesController,
@@ -76,6 +78,8 @@ router.post("/tallyData", verifyAuth, requireRole("head", "trainer"), updateTall
 router.post("/remit", verifyAuth, requireRole("head", "trainer"), remitTicketSalesController);
 router.post("/unremit", verifyAuth, requireRole("head", "trainer"), unRemitTicketSalesController);
 router.post("/transfer", verifyAuth, requireRole("head", "trainer"), transferTicketController);
+router.post("/sell/ticket", verifyAuth, requireRole("head", "trainer"), trainerSellTicketController);
+router.post("/unsell/ticket", verifyAuth, requireRole("head", "trainer"), trainerUnSellTicketController);
 
 //Distributor Ticket Operations
 router.post("/markSold", verifyAuth, markTicketAsSoldController);

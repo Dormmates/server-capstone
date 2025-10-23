@@ -201,7 +201,7 @@ export const getDistributorShowsAndTicketsAllocated = async ({ distributorId }) 
         },
       },
     },
-    orderBy: { controlNumber: "asc" },
+    orderBy: [{ schedule: { datetime: "asc" } }, { controlNumber: "asc" }],
   });
 
   const mappedTickets = allocatedTickets.map((ticket) => {

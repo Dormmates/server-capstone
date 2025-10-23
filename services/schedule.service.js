@@ -212,8 +212,7 @@ export const copySchedule = async ({ scheduleId, newDateTime }) => {
     });
 
     if (existingSchedule.ticketType === "ticketed") {
-      const orchestraControlNumbers = existingSchedule.tickets.filter((t) => t.ticketSection === "orchestra").map((t) => t.controlNumber);
-      const balconyControlNumbers = existingSchedule.tickets.filter((t) => t.ticketSection === "balcony").map((t) => t.controlNumber);
+      const controlNumbers = existingSchedule.tickets.filter((t) => !t.isComplimentary).map((t) => t.controlNumber);
       const complimentaryControlNumbers = existingSchedule.tickets.filter((t) => t.isComplimentary).map((t) => t.controlNumber);
 
       await generateScheduleTicketsAndSeats({
@@ -222,8 +221,7 @@ export const copySchedule = async ({ scheduleId, newDateTime }) => {
         ticketPricing: existingSchedule.ticketPricing,
         seatPricing: existingSchedule.ticketPricing.type || "fixed",
         controlNumbers: {
-          orchestra: orchestraControlNumbers,
-          balcony: balconyControlNumbers,
+          tickets: controlNumbers,
           complimentary: complimentaryControlNumbers,
         },
         seatingConfiguration: existingSchedule.seatingType,
@@ -608,6 +606,17 @@ export const getScheduleTickets = async (scheduleId) => {
         },
         take: 1,
       },
+      distributor: {
+        select: {
+          firstName: true,
+          lastName: true,
+          distributor: {
+            select: {
+              distributorType: true,
+            },
+          },
+        },
+      },
       logs: {
         select: {
           action: {
@@ -626,6 +635,8 @@ export const getScheduleTickets = async (scheduleId) => {
 
     return {
       ...ticket,
+      distributorName: ticket?.distributor ? ticket.distributor.firstName + " " + ticket.distributor.lastName : null,
+      distributorType: ticket?.distributor?.distributor?.distributorType ? ticket.distributor.distributor.distributorType : null,
       seatNumber: ticket.seats[0]?.seatNumber ?? null,
       seatSection: ticket.seats[0]?.seatSection ?? null,
       isRemitted: ticket.status === "lost" || ticket.status === "sold" || ticket.status === "remitted",
@@ -725,7 +736,7 @@ export const generateTicketInformations = async (scheduleId) => {
 
   return result.map((ticket) => ({
     controlNumber: ticket.controlNumber,
-    distributorName: ticket?.distributor ? ticket.distributor.firstName + " " + ticket.distributor.lastName : "No Assigned Distributor",
+    distributorName: ticket?.distributor ? ticket.distributor.firstName + " " + ticket.distributor.lastName : "",
     currentStatus: ticket.status,
     isComplimentary: ticket.isComplimentary,
   }));
@@ -1696,5 +1707,123 @@ export const transferTicket = async ({ reason, actionBy, scheduleId, controlNumb
         },
       },
     });
+  });
+};
+
+export const trainerSellTicket = async (scheduleId, controlNumber, trainerId, customerName = null, customerEmail = null) => {
+  const ticket = await prisma.ticket.findFirst({
+    where: { scheduleId, controlNumber },
+    select: { ticketId: true, controlNumber: true, ticketPrice: true, status: true, isComplimentary: true },
+  });
+
+  if (ticket.isComplimentary) {
+    throw new AppError("Cannot sell/remit a complimentary ticket");
+  }
+
+  if (ticket.status !== "not_allocated") {
+    throw new AppError("You can only directly sell/remit ticket that is not allocated");
+  }
+
+  const actionLogId = crypto.randomUUID();
+
+  await prisma.$transaction(async (tx) => {
+    await tx.ticket.update({
+      where: { scheduleId, ticketId: ticket.ticketId },
+      data: { status: "remitted", customerEmail, customerName, distributorId: trainerId, trainerSold: true },
+    });
+
+    const seat = await tx.showSeat.findFirst({
+      where: { scheduleId, ticketId: ticket.ticketId },
+    });
+
+    if (seat) {
+      await tx.showSeat.update({
+        where: {
+          scheduleId_seatNumber: {
+            scheduleId,
+            seatNumber: seat.seatNumber,
+          },
+        },
+        data: { status: "sold" },
+      });
+    }
+
+    await tx.ticketActionLog.create({
+      data: {
+        actionLogId,
+        actionBy: trainerId,
+        distributorId: trainerId,
+        scheduleId,
+        actionType: "remit",
+        logs: {
+          createMany: {
+            data: {
+              ticketId: ticket.ticketId,
+            },
+          },
+        },
+      },
+    });
+
+    return true;
+  });
+};
+
+export const trainerUnSellTicket = async (scheduleId, controlNumber, trainerId) => {
+  const ticket = await prisma.ticket.findFirst({
+    where: { scheduleId, controlNumber },
+    select: { ticketId: true, controlNumber: true, ticketPrice: true, isComplimentary: true, status: true, distributor: true },
+  });
+
+  if (ticket.isComplimentary) {
+    throw new AppError("Cannot unsell/unremit a complimentary ticket");
+  }
+
+  if (ticket.status !== "remitted") {
+    throw new AppError("You can only directly unsell/unremit ticket that is remitted");
+  }
+
+  const actionLogId = crypto.randomUUID();
+
+  await prisma.$transaction(async (tx) => {
+    await tx.ticket.update({
+      where: { scheduleId, ticketId: ticket.ticketId },
+      data: { status: "not_allocated", distributorId: null, customerEmail: null, customerName: null, trainerSold: false },
+    });
+
+    const seat = await tx.showSeat.findFirst({
+      where: { scheduleId, ticketId: ticket.ticketId },
+    });
+
+    if (seat) {
+      await tx.showSeat.update({
+        where: {
+          scheduleId_seatNumber: {
+            scheduleId,
+            seatNumber: seat.seatNumber,
+          },
+        },
+        data: { status: "available" },
+      });
+    }
+
+    await tx.ticketActionLog.create({
+      data: {
+        actionLogId,
+        actionBy: trainerId,
+        distributorId: trainerId,
+        scheduleId,
+        actionType: "unremit",
+        logs: {
+          createMany: {
+            data: {
+              ticketId: ticket.ticketId,
+            },
+          },
+        },
+      },
+    });
+
+    return true;
   });
 };

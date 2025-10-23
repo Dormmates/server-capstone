@@ -372,7 +372,7 @@ export const generateSalesReport = async (showId, scheduleIds) => {
       // Distributor breakdown
       const distributorId = t.distributor ? t.distributor.userId : "online";
       const distributorName = t.distributor ? `${t.distributor.firstName} ${t.distributor.lastName}` : "Online Reservation";
-      const distributorType = t.distributor.distributor.distributorType;
+      const distributorType = t.distributor?.distributor?.distributorType ?? "Trainer";
 
       if (!distributorsMap.has(distributorId)) {
         distributorsMap.set(distributorId, {

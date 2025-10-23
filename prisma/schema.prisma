@@ -20,19 +20,18 @@ model Department {
 }
 
 model Distributor {
-  userId            String          @unique(map: "userId_UNIQUE") @db.VarChar(36)
-  departmentId      String?         @db.VarChar(36)
-  contactNumber     String          @db.VarChar(20)
-  user              User            @relation(fields: [userId], references: [userId], onDelete: Cascade, map: "distributor_ibfk_1")
-  distributorType   DistributorTypes
-  hasCommission     Boolean         @default(true)
-  department        Department?     @relation(fields: [departmentId], references: [departmentId], onDelete: Restrict, map: "distributor_ibfk_3")
+  userId          String           @unique(map: "userId_UNIQUE") @db.VarChar(36)
+  departmentId    String?          @db.VarChar(36)
+  contactNumber   String           @db.VarChar(20)
+  user            User             @relation(fields: [userId], references: [userId], onDelete: Cascade, map: "distributor_ibfk_1")
+  distributorType DistributorTypes
+  hasCommission   Boolean          @default(true)
+  department      Department?      @relation(fields: [departmentId], references: [departmentId], onDelete: Restrict, map: "distributor_ibfk_3")
 
   @@id([userId])
   @@index([distributorType])
   @@index([departmentId], map: "distributor_ibfk_3")
 }
-
 
 model Genre {
   name       String      @id @db.VarChar(100)
@@ -139,6 +138,7 @@ model Ticket {
   ticketPrice        Decimal?         @db.Decimal(10, 2)
   customerName       String?          @db.VarChar(45)
   customerEmail      String?          @db.VarChar(45)
+  trainerSold        Boolean          @default(false)
   logs               TicketLog[]
   reservedTickets    ReservedTicket[]
   seats              ShowSeat[]
@@ -313,8 +313,6 @@ enum TicketActionType {
   unsoldTicket
   transfer
 }
-
-
 
 enum NotificationType {
   createShow
