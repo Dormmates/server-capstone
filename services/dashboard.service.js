@@ -212,7 +212,8 @@ export const getTopShowsByGenre = async ({ departmentId }) => {
     const showId = show.showId;
     const genres = show.genres.map((g) => g.genreFk.name);
 
-    const hasCommission = ticket.distributor.distributor.hasCommission;
+    // const hasCommission = ticket.distributor.distributor.hasCommission;
+    const hasCommission = true;
 
     const commissionAmount = hasCommission ? ticket.schedule.ticketPricing.commissionFee : 0;
     const netRevenue = ticket.ticketPrice - commissionAmount;
@@ -323,7 +324,8 @@ export const getTopDistributors = async ({ departmentId }) => {
     const show = ticket.schedule.show;
     const schedule = ticket.schedule;
 
-    const hasCommission = dist.distributor?.hasCommission ?? false;
+    // const hasCommission = dist.distributor?.hasCommission ?? false;
+    const hasCommission = true;
     const commissionFee = schedule.ticketPricing?.commissionFee ?? 0;
     const commissionAmount = hasCommission ? commissionFee : 0;
     const netRevenue = ticket.ticketPrice - commissionAmount;
@@ -332,8 +334,8 @@ export const getTopDistributors = async ({ departmentId }) => {
       distributorMap.set(userId, {
         userId,
         fullName,
-        distributorType: dist.distributor.distributorType,
-        department: dist.distributor.department?.name ?? "No Group",
+        distributorType: dist?.distributor?.distributorType ?? "Trainer",
+        department: dist?.distributor?.department?.name ?? "No Group",
         totalTickets: 0,
         totalCommission: 0,
         totalNetRevenue: 0,
