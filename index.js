@@ -12,6 +12,7 @@ import { router as accountsRoute } from "./routes/accounts.route.js";
 import { router as notifcationRouter } from "./routes/notification.route.js";
 import { router as ticketPricingRouter } from "./routes/ticketprice.route.js";
 import { router as cronRoute } from "./routes/cron.route.js";
+import { router as customerRoute } from "./routes/customer.route.js";
 import { errorHandler } from "./middleware/errorHandler.middleware.js";
 
 dotenv.config();
@@ -43,6 +44,7 @@ app.use("/api/genres", genresRoute);
 app.use("/api/pricing", ticketPricingRouter);
 app.use("/api/notification", notifcationRouter);
 app.use("/api/dashboard", dashboardRoute);
+app.use("/api/customer", customerRoute);
 app.use("/api/cron", cronRoute);
 
 app.get("/", (req, res) => {
