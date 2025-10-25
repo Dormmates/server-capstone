@@ -47,6 +47,16 @@ export const getDepartmentTrainer = async (departmentId) => {
   };
 };
 
+export const getDepartment = async (id) => {
+  const department = await prisma.department.findUnique({
+    where: {
+      departmentId: id,
+    },
+  });
+
+  return department;
+};
+
 export const getDepartments = async (trainerId) => {
   const departments = await prisma.department.findMany({
     where: trainerId ? { trainerId } : undefined,

@@ -114,7 +114,7 @@ export const updateShow = async ({ showId, showTitle, coverImage, description, d
   });
 };
 
-export const getShows = async ({ departmentId = null, showType = null, includeMajorProduction = false, excludeArchived = false }) => {
+export const getShows = async ({ departmentId = null, showType = null, includeMajorProduction = false, excludeArchived = false, limit = null }) => {
   const where = {
     ...(departmentId && {
       OR: [{ departmentId }, { departmentId: null }],
@@ -148,6 +148,7 @@ export const getShows = async ({ departmentId = null, showType = null, includeMa
     orderBy: {
       createdAt: "desc",
     },
+    ...(limit ? { take: Number(limit) } : {}),
   });
 
   const transformedShows = shows.map(({ genres, schedules, ...rest }) => ({

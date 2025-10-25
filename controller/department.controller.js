@@ -5,6 +5,7 @@ import {
   createDepartment,
   createTrainerAndAssign,
   deleteDepartment,
+  getDepartment,
   getDepartments,
   removeDepartmentTrainerByTrainerId,
   updateDepartment,
@@ -19,6 +20,13 @@ export const createDepartmentController = asyncHandler(async (req, res, next) =>
   const newDepartment = await createDepartment({ name, logoUrl: imageUrl });
 
   res.status(HttpStatusCodes.Created).json({ ...newDepartment });
+});
+
+export const getDepartmentController = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+
+  const department = await getDepartment(id);
+  res.json(department);
 });
 
 export const getDepartmentListController = asyncHandler(async (req, res, next) => {

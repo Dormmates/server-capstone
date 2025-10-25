@@ -5,6 +5,7 @@ import {
   createTrainerAndAssignController,
   deleteDepartmentController,
   editDepartmentController,
+  getDepartmentController,
   getDepartmentListController,
   removeDepartmentTrainerController,
 } from "../controller/department.controller.js";
@@ -22,5 +23,6 @@ router.patch("/", verifyAuth, requireRole("head"), upload.single("image"), updat
 router.patch("/remove-trainer", verifyAuth, requireRole("head"), removeDepartmentTrainerController);
 
 router.get("/", getDepartmentListController);
+router.get("/:id", getDepartmentController);
 
 router.delete("/:id", verifyAuth, requireRole("head"), deleteDepartmentController);

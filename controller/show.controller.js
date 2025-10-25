@@ -99,16 +99,14 @@ export const getShowController = asyncHandler(async (req, res, next) => {
 });
 
 export const getShowsController = asyncHandler(async (req, res) => {
-  const departmentId = req.query.departmentId;
-  const showType = req.query.showType;
-  const includeMajorProduction = req.query.includeMajorProduction;
-  const excludeArchived = req.query.excludeArchived;
+  const { departmentId, showType, includeMajorProduction, excludeArchived, limit } = req.query;
 
   const { shows } = await getShows({
     departmentId,
     showType,
     includeMajorProduction,
     excludeArchived,
+    limit,
   });
 
   res.json(shows);
