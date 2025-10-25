@@ -125,7 +125,8 @@ export const getTopShowsByTotalRevenue = async ({ departmentId } = {}) => {
 
   for (const ticket of tickets) {
     const showId = ticket.schedule.show.showId;
-    const hasCommission = ticket.distributor.distributor.hasCommission;
+    // const hasCommission = ticket.distributor.distributor.hasCommission;
+    const hasCommission = true;
 
     const commissionAmount = hasCommission ? ticket.schedule.ticketPricing.commissionFee : 0;
     const netRevenue = ticket.ticketPrice - commissionAmount;

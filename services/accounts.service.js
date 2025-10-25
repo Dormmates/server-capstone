@@ -97,10 +97,9 @@ export const getCCAHeads = async () => {
       },
     },
     include: {
-      department: {
+      departments: {
         select: {
-          name: true,
-          departmentId: true,
+          department: true,
         },
       },
       roles: {
@@ -113,6 +112,7 @@ export const getCCAHeads = async () => {
 
   return heads.map((user) => ({
     ...user,
+    departments: user.departments.map((d) => d),
     roles: user.roles.map((ur) => ur.role),
   }));
 };

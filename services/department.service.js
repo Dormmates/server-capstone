@@ -27,24 +27,25 @@ export const createDepartment = async ({ name, logoUrl }) => {
   return newDepartment;
 };
 
-export const getDepartmentTrainer = async (departmentId) => {
-  const department = await prisma.department.findUnique({
+export const getDepartmentTrainers = async (departmentId) => {
+  const trainers = await prisma.department.findUnique({
     where: { departmentId },
     select: {
-      trainer: {
+      trainers: {
         select: {
-          firstName: true,
-          lastName: true,
-          userId: true,
+          user: {
+            select: {
+              firstName: true,
+              lastName: true,
+              userId: true,
+            },
+          },
         },
       },
     },
   });
 
-  return {
-    name: department.trainer.firstName + " " + department.trainer.lastName,
-    id: department.trainer.userId,
-  };
+  return trainers.trainers.map((trainer) => ({ name: trainer.user.firstName + " " + trainer.user.lastName, id: trainer.user.userId }));
 };
 
 export const getDepartment = async (id) => {

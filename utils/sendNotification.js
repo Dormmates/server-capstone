@@ -1,5 +1,5 @@
 import { getUserRoles } from "../services/accounts.service.js";
-import { getDepartmentTrainer } from "../services/department.service.js";
+import { getDepartmentTrainers } from "../services/department.service.js";
 import { createNotification, getCcaHeadIds, getTrainerIds } from "../services/notification.service.js";
 import dayjs from "dayjs";
 import prisma from "./primsa.connection.js";
@@ -36,8 +36,8 @@ export const sendShowNotification = async ({ actionBy, showId, showTitle, showTy
       if (showType === "majorProduction") {
         trainerIds = await getTrainerIds(actionBy);
       } else {
-        const trainer = await getDepartmentTrainer(department);
-        if (trainer) trainerIds.push(trainer.id);
+        const trainers = await getDepartmentTrainers(department);
+        if (trainers) trainers.forEach((t) => trainerIds.push(t.id));
       }
     }
 
@@ -115,8 +115,8 @@ export const sendDistributorActivityNotification = async ({ actionBy, distributo
     if (schedule.show.showType === "majorProduction") {
       trainerIds = await getTrainerIds();
     } else {
-      const trainer = await getDepartmentTrainer(schedule.show.departmentId);
-      if (trainer) trainerIds.push(trainer.id);
+      const trainers = await getDepartmentTrainers(schedule.show.departmentId);
+      if (trainers) trainers.forEach((t) => trainerIds.push(t.id));
     }
     const recipientIds = [...new Set([...headIds, ...trainerIds])];
     if (!recipientIds.length) return;
