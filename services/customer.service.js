@@ -35,10 +35,12 @@ export const getUpcomingShows = async () => {
           title: true,
           description: true,
           showCover: true,
+          showId: true,
         },
       });
 
       return {
+        showId: show.showId,
         date: schedule._min.datetime,
         title: show?.title,
         description: show?.description,
