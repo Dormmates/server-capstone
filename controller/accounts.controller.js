@@ -16,7 +16,6 @@ import {
   unArchiveUser,
 } from "../services/accounts.service.js";
 import { createAccount, getUserById } from "../services/auth.service.js";
-import { assignDepartmentTrainer, removeDepartmentTrainer, removeDepartmentTrainerByTrainerId } from "../services/department.service.js";
 import prisma from "../utils/primsa.connection.js";
 import { validateEmail } from "../utils/validators.js";
 
@@ -32,7 +31,7 @@ export const getTrainersController = asyncHandler(async (req, res, next) => {
  * Creates a new Trainer Account
  */
 export const createTrainerAccountController = asyncHandler(async (req, res, next) => {
-  const { firstName, lastName, email, departmentId } = req.body;
+  const { firstName, lastName, email } = req.body;
 
   if (!firstName || !lastName || !email) {
     throw new AppError("Missing Required Fields", HttpStatusCodes.BadRequest);
@@ -44,11 +43,7 @@ export const createTrainerAccountController = asyncHandler(async (req, res, next
     throw new AppError(emailCheck.message, HttpStatusCodes.BadRequest);
   }
 
-  const newTrainer = await createAccount({ firstName, lastName, userType: "trainer", email, password: "123456" });
-
-  if (departmentId) {
-    await assignDepartmentTrainer({ departmentId, trainerId: newTrainer.userId });
-  }
+  await createAccount({ firstName, lastName, userType: "trainer", email, password: "123456" });
 
   res.status(HttpStatusCodes.Created).json({ message: "Trainer Account Create Successfully" });
 });

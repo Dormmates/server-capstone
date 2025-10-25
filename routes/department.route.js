@@ -7,7 +7,6 @@ import {
   editDepartmentController,
   getDepartmentController,
   getDepartmentListController,
-  removeDepartmentTrainerController,
 } from "../controller/department.controller.js";
 import { requireRole, verifyAuth } from "../middleware/auth.middleware.js";
 import upload from "../utils/upload.js";
@@ -17,10 +16,9 @@ export const router = express.Router();
 
 router.post("/", verifyAuth, requireRole("head"), upload.single("image"), uploadMediaMiddleware, createDepartmentController);
 router.post("/createTrainerAndAssign", verifyAuth, requireRole("head"), createTrainerAndAssignController);
-router.post("/assign", verifyAuth, requireRole("head"), assignDepartmentTrainerController);
 
+router.post("/assign", verifyAuth, requireRole("head"), assignDepartmentTrainerController);
 router.patch("/", verifyAuth, requireRole("head"), upload.single("image"), updateWithReplace, editDepartmentController);
-router.patch("/remove-trainer", verifyAuth, requireRole("head"), removeDepartmentTrainerController);
 
 router.get("/", getDepartmentListController);
 router.get("/:id", getDepartmentController);

@@ -57,14 +57,21 @@ export const getDepartment = async (id) => {
   return department;
 };
 
-export const getDepartments = async (trainerId) => {
+export const getDepartments = async (trainerId = null) => {
   const departments = await prisma.department.findMany({
-    where: trainerId ? { trainerId } : undefined,
+    where: trainerId
+      ? {
+          trainers: {
+            some: {
+              userId: trainerId,
+            },
+          },
+        }
+      : undefined,
     include: {
-      trainer: {
+      trainers: {
         select: {
-          firstName: true,
-          lastName: true,
+          user: true,
         },
       },
       _count: {
@@ -79,9 +86,8 @@ export const getDepartments = async (trainerId) => {
   const result = departments.map((dep) => ({
     departmentId: dep.departmentId,
     name: dep.name,
-    trainerId: dep.trainerId,
+    trainers: dep.trainers.map((t) => ({ trainerId: t.user.userId, trainerName: t.user.firstName + " " + t.user.lastName })),
     logoUrl: dep.logoUrl,
-    trainerName: dep.trainer ? `${dep.trainer.firstName} ${dep.trainer.lastName}` : null,
     totalShows: dep._count.shows,
     totalMembers: dep._count.distributors,
   }));
@@ -112,32 +118,59 @@ export const updateDepartment = async ({ departmentId, name, logoUrl }) => {
   });
 };
 
-export const removeDepartmentTrainer = async (departmentId, tx = prisma) => {
-  return await tx.department.update({
-    where: { departmentId },
-    data: { trainerId: null },
-  });
-};
-
-export const removeDepartmentTrainerByTrainerId = async (trainerId, tx = prisma) => {
-  return await tx.department.updateMany({
-    where: { trainerId },
-    data: { trainerId: null },
-  });
-};
-
-export const assignDepartmentTrainer = async ({ departmentId, trainerId, tx = prisma }) => {
+export const unassignDepartmentTrainer = async ({ departmentId, trainerId, tx = prisma }) => {
   const department = await tx.department.findUnique({ where: { departmentId } });
 
   if (!department) {
     throw new AppError("Department not found", HttpStatusCodes.NotFound);
   }
 
-  if (department.trainerId) {
-    throw new AppError("The Department already have trainer", HttpStatusCodes.BadRequest);
-  }
+  return await tx.departmentTrainer.delete({
+    where: {
+      departmentId_userId: {
+        departmentId,
+        userId: trainerId,
+      },
+    },
+  });
+};
 
-  return await tx.department.update({ where: { departmentId }, data: { trainerId } });
+export const assignDepartmentTrainers = async ({ departmentId, trainers }) => {
+  return await prisma.$transaction(async (tx) => {
+    const department = await tx.department.findUnique({ where: { departmentId } });
+    if (!department) {
+      throw new AppError("Department not found", HttpStatusCodes.NotFound);
+    }
+
+    const currentTrainers = await tx.departmentTrainer.findMany({
+      where: { departmentId },
+      select: { userId: true },
+    });
+
+    const currentTrainerIds = currentTrainers.map((t) => t.userId);
+
+    const toRemove = currentTrainerIds.filter((id) => !trainers.includes(id));
+    const toAdd = trainers.filter((id) => !currentTrainerIds.includes(id));
+
+    if (toRemove.length > 0) {
+      await tx.departmentTrainer.deleteMany({
+        where: {
+          departmentId,
+          userId: { in: toRemove },
+        },
+      });
+    }
+
+    const created = [];
+    for (const trainerId of toAdd) {
+      const record = await tx.departmentTrainer.create({
+        data: { departmentId, userId: trainerId },
+      });
+      created.push(record);
+    }
+
+    return created;
+  });
 };
 
 export const createTrainerAndAssign = async ({ departmentId, firstName, lastName, email }) => {
@@ -169,10 +202,10 @@ export const createTrainerAndAssign = async ({ departmentId, firstName, lastName
       },
     });
 
-    await tx.department.update({
-      where: { departmentId },
+    await tx.departmentTrainer.create({
       data: {
-        trainerId: userId,
+        userId,
+        departmentId,
       },
     });
 

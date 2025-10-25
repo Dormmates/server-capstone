@@ -12,10 +12,9 @@ export const getTrainers = async () => {
       },
     },
     include: {
-      department: {
+      departments: {
         select: {
-          name: true,
-          departmentId: true,
+          department: true,
         },
       },
       roles: {
@@ -28,6 +27,7 @@ export const getTrainers = async () => {
 
   return trainers.map((user) => ({
     ...user,
+    departments: user.departments.map((d) => d.department),
     roles: user.roles.map((ur) => ur.role),
   }));
 };
@@ -366,8 +366,22 @@ export const deleteUserSafely = async (userId) => {
 
 export const archiveUser = async (userId) => {
   await prisma.$transaction(async (tx) => {
-    const user = await tx.user.update({ where: { userId }, data: { isArchived: true }, select: { department: true } });
-    if (user.department) await tx.department.update({ where: { trainerId: userId }, data: { trainerId: null } });
+    const user = await tx.user.update({
+      where: { userId },
+      data: { isArchived: true },
+      select: { departments: { select: { departmentId: true } } },
+    });
+
+    const departmentIds = user.departments.map((d) => d.departmentId);
+
+    if (departmentIds.length > 0) {
+      await tx.departmentTrainer.deleteMany({
+        where: {
+          userId,
+          departmentId: { in: departmentIds },
+        },
+      });
+    }
   });
 };
 

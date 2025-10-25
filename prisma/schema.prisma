@@ -8,15 +8,24 @@ datasource db {
 }
 
 model Department {
-  departmentId String        @id @db.VarChar(36)
-  name         String        @unique(map: "name_UNIQUE") @db.VarChar(100)
-  trainerId    String?       @unique(map: "trainerId_UNIQUE") @db.VarChar(36)
-  logoUrl      String        @db.VarChar(225)
-  trainer      User?         @relation(fields: [trainerId], references: [userId], onDelete: Restrict, map: "department_ibfk_1")
+  departmentId String              @id @db.VarChar(36)
+  name         String              @unique
+  logoUrl      String
+  trainers     DepartmentTrainer[]
   distributors Distributor[]
   shows        Show[]
+}
 
-  @@index([trainerId], map: "trainerId")
+model DepartmentTrainer {
+  departmentId String
+  userId       String
+
+  department Department @relation(fields: [departmentId], references: [departmentId])
+  user       User       @relation(fields: [userId], references: [userId])
+
+  @@id([departmentId, userId])
+  @@index([userId])
+  @@index([departmentId])
 }
 
 model Distributor {
@@ -161,7 +170,7 @@ model User {
   isDefaultPassword    Boolean                @default(true)
   resetPasswordToken   String?
   resetPasswordExpires DateTime?
-  department           Department?
+  departments          DepartmentTrainer[]
   distributor          Distributor?
   deliveries           NotificationDelivery[]
   notifications        Notification[]         @relation("Notification_SenderToUser")

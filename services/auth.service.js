@@ -30,10 +30,9 @@ export const getUserByEmail = async (email) => {
           },
         },
       },
-      department: {
+      departments: {
         select: {
-          departmentId: true,
-          name: true,
+          department: true,
         },
       },
       roles: {
@@ -49,6 +48,7 @@ export const getUserByEmail = async (email) => {
   return {
     ...user,
     roles: user.roles.map((r) => r.role),
+    departments: user.departments.map((d) => d.department),
   };
 };
 
@@ -79,10 +79,9 @@ export const getUserById = async (userId) => {
           },
         },
       },
-      department: {
+      departments: {
         select: {
-          departmentId: true,
-          name: true,
+          department: true,
         },
       },
       roles: {
@@ -93,7 +92,11 @@ export const getUserById = async (userId) => {
     },
   });
 
-  return { ...user, roles: user.roles.map((r) => r.role) };
+  return {
+    ...user,
+    roles: user.roles.map((r) => r.role),
+    departments: user.departments.map((d) => d.department),
+  };
 };
 
 export const login = async ({ email, password }) => {
