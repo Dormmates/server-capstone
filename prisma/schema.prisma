@@ -321,6 +321,7 @@ enum TicketActionType {
   soldTicket
   unsoldTicket
   transfer
+  refund
 }
 
 enum NotificationType {

@@ -1589,6 +1589,125 @@ export const getDistributorTicketActivities = async (scheduleId) => {
   return logs;
 };
 
+export const trainerSellTicket = async (scheduleId, controlNumber, trainerId, customerName = null, customerEmail = null) => {
+  const ticket = await prisma.ticket.findFirst({
+    where: { scheduleId, controlNumber },
+    select: { ticketId: true, controlNumber: true, ticketPrice: true, status: true, isComplimentary: true },
+  });
+
+  if (ticket.isComplimentary) {
+    throw new AppError("Cannot sell/remit a complimentary ticket");
+  }
+
+  if (ticket.status !== "not_allocated") {
+    throw new AppError("You can only directly sell/remit ticket that is not allocated");
+  }
+
+  const actionLogId = crypto.randomUUID();
+
+  await prisma.$transaction(async (tx) => {
+    await tx.ticket.update({
+      where: { scheduleId, ticketId: ticket.ticketId },
+      data: { status: "remitted", customerEmail, customerName, distributorId: trainerId, trainerSold: true },
+    });
+
+    const seat = await tx.showSeat.findFirst({
+      where: { scheduleId, ticketId: ticket.ticketId },
+    });
+
+    if (seat) {
+      await tx.showSeat.update({
+        where: {
+          scheduleId_seatNumber: {
+            scheduleId,
+            seatNumber: seat.seatNumber,
+          },
+        },
+        data: { status: "sold" },
+      });
+    }
+
+    await tx.ticketActionLog.create({
+      data: {
+        actionLogId,
+        actionBy: trainerId,
+        distributorId: trainerId,
+        scheduleId,
+        actionType: "remit",
+        logs: {
+          createMany: {
+            data: {
+              ticketId: ticket.ticketId,
+            },
+          },
+        },
+      },
+    });
+
+    return true;
+  });
+};
+
+export const refundTicket = async (scheduleId, controlNumber, trainerId, distributorId, remarks = null) => {
+  const ticket = await prisma.ticket.findFirst({
+    where: { scheduleId, controlNumber },
+    select: { ticketId: true, controlNumber: true, ticketPrice: true, isComplimentary: true, status: true, distributor: true },
+  });
+
+  if (ticket.isComplimentary) {
+    throw new AppError("Cannot refund a complimentary ticket");
+  }
+
+  if (ticket.status !== "remitted") {
+    throw new AppError("You can only refund ticket that is remitted");
+  }
+
+  const actionLogId = crypto.randomUUID();
+
+  await prisma.$transaction(async (tx) => {
+    await tx.ticket.update({
+      where: { scheduleId, ticketId: ticket.ticketId },
+      data: { status: "not_allocated", distributorId: null, customerEmail: null, customerName: null, trainerSold: false },
+    });
+
+    const seat = await tx.showSeat.findFirst({
+      where: { scheduleId, ticketId: ticket.ticketId },
+    });
+
+    if (seat) {
+      await tx.showSeat.update({
+        where: {
+          scheduleId_seatNumber: {
+            scheduleId,
+            seatNumber: seat.seatNumber,
+          },
+        },
+        data: { status: "available" },
+      });
+    }
+
+    await tx.ticketActionLog.create({
+      data: {
+        actionLogId,
+        actionBy: trainerId,
+        distributorId,
+        scheduleId,
+        actionType: "refund",
+        remarks,
+        logs: {
+          createMany: {
+            data: {
+              ticketId: ticket.ticketId,
+            },
+          },
+        },
+      },
+    });
+
+    return true;
+  });
+};
+
 export const transferTicket = async ({ reason, actionBy, scheduleId, controlNumber, newScheduleId, seatNumber = null }) => {
   const odlSchedule = await prisma.showSchedule.findUnique({
     where: { scheduleId },
@@ -1707,123 +1826,5 @@ export const transferTicket = async ({ reason, actionBy, scheduleId, controlNumb
         },
       },
     });
-  });
-};
-
-export const trainerSellTicket = async (scheduleId, controlNumber, trainerId, customerName = null, customerEmail = null) => {
-  const ticket = await prisma.ticket.findFirst({
-    where: { scheduleId, controlNumber },
-    select: { ticketId: true, controlNumber: true, ticketPrice: true, status: true, isComplimentary: true },
-  });
-
-  if (ticket.isComplimentary) {
-    throw new AppError("Cannot sell/remit a complimentary ticket");
-  }
-
-  if (ticket.status !== "not_allocated") {
-    throw new AppError("You can only directly sell/remit ticket that is not allocated");
-  }
-
-  const actionLogId = crypto.randomUUID();
-
-  await prisma.$transaction(async (tx) => {
-    await tx.ticket.update({
-      where: { scheduleId, ticketId: ticket.ticketId },
-      data: { status: "remitted", customerEmail, customerName, distributorId: trainerId, trainerSold: true },
-    });
-
-    const seat = await tx.showSeat.findFirst({
-      where: { scheduleId, ticketId: ticket.ticketId },
-    });
-
-    if (seat) {
-      await tx.showSeat.update({
-        where: {
-          scheduleId_seatNumber: {
-            scheduleId,
-            seatNumber: seat.seatNumber,
-          },
-        },
-        data: { status: "sold" },
-      });
-    }
-
-    await tx.ticketActionLog.create({
-      data: {
-        actionLogId,
-        actionBy: trainerId,
-        distributorId: trainerId,
-        scheduleId,
-        actionType: "remit",
-        logs: {
-          createMany: {
-            data: {
-              ticketId: ticket.ticketId,
-            },
-          },
-        },
-      },
-    });
-
-    return true;
-  });
-};
-
-export const trainerUnSellTicket = async (scheduleId, controlNumber, trainerId) => {
-  const ticket = await prisma.ticket.findFirst({
-    where: { scheduleId, controlNumber },
-    select: { ticketId: true, controlNumber: true, ticketPrice: true, isComplimentary: true, status: true, distributor: true },
-  });
-
-  if (ticket.isComplimentary) {
-    throw new AppError("Cannot unsell/unremit a complimentary ticket");
-  }
-
-  if (ticket.status !== "remitted") {
-    throw new AppError("You can only directly unsell/unremit ticket that is remitted");
-  }
-
-  const actionLogId = crypto.randomUUID();
-
-  await prisma.$transaction(async (tx) => {
-    await tx.ticket.update({
-      where: { scheduleId, ticketId: ticket.ticketId },
-      data: { status: "not_allocated", distributorId: null, customerEmail: null, customerName: null, trainerSold: false },
-    });
-
-    const seat = await tx.showSeat.findFirst({
-      where: { scheduleId, ticketId: ticket.ticketId },
-    });
-
-    if (seat) {
-      await tx.showSeat.update({
-        where: {
-          scheduleId_seatNumber: {
-            scheduleId,
-            seatNumber: seat.seatNumber,
-          },
-        },
-        data: { status: "available" },
-      });
-    }
-
-    await tx.ticketActionLog.create({
-      data: {
-        actionLogId,
-        actionBy: trainerId,
-        distributorId: trainerId,
-        scheduleId,
-        actionType: "unremit",
-        logs: {
-          createMany: {
-            data: {
-              ticketId: ticket.ticketId,
-            },
-          },
-        },
-      },
-    });
-
-    return true;
   });
 };
