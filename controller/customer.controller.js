@@ -1,6 +1,6 @@
 import { asyncHandler } from "../middleware/asyncHandler.middleware.js";
 import { AppError } from "../middleware/errorHandler.middleware.js";
-import { getDepartmentShows, getUpcomingShows } from "../services/customer.service.js";
+import { getDepartmentShows, getShowWithSchedule, getUpcomingShows } from "../services/customer.service.js";
 
 export const getUpcomingShowsController = asyncHandler(async (req, res) => {
   const result = await getUpcomingShows();
@@ -16,5 +16,12 @@ export const getDepartmentShowsController = asyncHandler(async (req, res) => {
   }
 
   const result = await getDepartmentShows({ departmentId, isArchived });
+  res.json(result);
+});
+
+export const getShowWithScheduleController = asyncHandler(async (req, res) => {
+  const { showId } = req.params;
+
+  const result = await getShowWithSchedule(showId);
   res.json(result);
 });

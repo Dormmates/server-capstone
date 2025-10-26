@@ -55,28 +55,23 @@ export const getUpcomingShows = async () => {
     .slice(0, 3);
 };
 
-export const getDepartmentShows = async ({ departmentId = null, isArchived = false }) => {
+export const getDepartmentShows = async ({ departmentId = null }) => {
   const now = new Date();
 
-  const baseWhere = {
-    isArchived,
-    ...(departmentId && {
-      OR: [{ departmentId }, { departmentId: null }],
-    }),
-  };
+  const baseWhere = departmentId ? { departmentId } : {};
 
   const shows = await prisma.show.findMany({
     where: baseWhere,
     include: {
       schedules: {
-        where: { isOpen: true },
         orderBy: { datetime: "asc" },
+        include: {
+          ticketPricing: true,
+        },
       },
       genres: {
         include: {
-          genreFk: {
-            select: { name: true },
-          },
+          genreFk: { select: { name: true } },
         },
       },
     },
@@ -86,33 +81,76 @@ export const getDepartmentShows = async ({ departmentId = null, isArchived = fal
     const upcomingSchedules = schedules.filter((s) => s.datetime >= now);
     const pastSchedules = schedules.filter((s) => s.datetime < now);
 
-    // Find the next upcoming schedule (soonest)
-    const nextSchedule =
-      upcomingSchedules.length > 0
-        ? upcomingSchedules.reduce((earliest, current) => (current.datetime < earliest.datetime ? current : earliest))
-        : null;
+    const nextSchedule = upcomingSchedules.length > 0 ? upcomingSchedules[0] : null;
+
+    const remainingUpcomingSchedules = nextSchedule && upcomingSchedules.length > 1 ? upcomingSchedules.slice(1) : [];
 
     return {
       ...rest,
       genreNames: genres.map((g) => g.genreFk.name),
-      upcomingSchedules,
-      pastSchedules,
       nextSchedule,
+      remainingUpcomingSchedules,
+      pastSchedules,
     };
   });
 
-  // Sort upcoming shows by soonest next schedule
-  const upcomingShows = transformedShows
-    .filter((s) => s.upcomingSchedules.length > 0)
-    .sort((a, b) => a.nextSchedule.datetime.getTime() - b.nextSchedule.datetime.getTime());
+  const showsWithUpcoming = transformedShows.filter((s) => s.nextSchedule);
+  const featuredShow =
+    showsWithUpcoming.length > 0
+      ? showsWithUpcoming.reduce((earliest, current) => (current.nextSchedule.datetime < earliest.nextSchedule.datetime ? current : earliest))
+      : null;
 
-  // Sort past shows by most recently finished schedule
-  const pastShows = transformedShows
-    .filter((s) => s.upcomingSchedules.length === 0 && s.pastSchedules.length > 0)
-    .sort((a, b) => b.pastSchedules[b.pastSchedules.length - 1].datetime.getTime() - a.pastSchedules[a.pastSchedules.length - 1].datetime.getTime());
+  const otherShows = transformedShows
+    .filter((s) => !featuredShow || s.showId !== featuredShow.showId)
+    .sort((a, b) => {
+      if (!a.nextSchedule && !b.nextSchedule) return 0;
+      if (!a.nextSchedule) return 1;
+      if (!b.nextSchedule) return -1;
+      return a.nextSchedule.datetime - b.nextSchedule.datetime;
+    });
 
   return {
-    upcomingShows,
-    pastShows,
+    featuredShow,
+    otherShows,
+  };
+};
+
+export const getShowWithSchedule = async (showId) => {
+  const now = new Date();
+
+  const show = await prisma.show.findUnique({
+    where: { showId },
+    include: {
+      schedules: {
+        orderBy: { datetime: "asc" },
+        include: {
+          ticketPricing: true,
+        },
+      },
+      genres: {
+        include: {
+          genreFk: { select: { name: true } },
+        },
+      },
+    },
+  });
+
+  if (!show) return null;
+
+  const { schedules, genres, ...rest } = show;
+
+  const upcomingSchedules = schedules.filter((s) => s.datetime >= now);
+  const pastSchedules = schedules.filter((s) => s.datetime < now);
+
+  const nextSchedule = upcomingSchedules.length > 0 ? upcomingSchedules[0] : null;
+
+  const remainingUpcomingSchedules = upcomingSchedules.length > 1 ? upcomingSchedules.slice(1) : [];
+
+  return {
+    ...rest,
+    genreNames: genres.map((g) => g.genreFk.name),
+    nextSchedule,
+    remainingUpcomingSchedules,
+    pastSchedules,
   };
 };

@@ -350,8 +350,8 @@ export const deleteUsersSafely = async (userIds) => {
 
 export const deleteUserSafely = async (userId) => {
   const hasReferences =
-    (await prisma.department.count({ where: { trainerId: userId } })) > 0 ||
-    (await prisma.notification.count({ where: { OR: [{ senderId: userId }] } })) > 0 ||
+    (await prisma.departmentTrainer.count({ where: { userId } })) > 0 ||
+    // (await prisma.notification.count({ where: { OR: [{ senderId: userId }] } })) > 0 ||
     (await prisma.show.count({ where: { createdBy: userId } })) > 0 ||
     (await prisma.ticket.count({ where: { distributorId: userId } })) > 0 ||
     (await prisma.ticketActionLog.count({ where: { OR: [{ actionBy: userId }, { distributorId: userId }] } })) > 0;

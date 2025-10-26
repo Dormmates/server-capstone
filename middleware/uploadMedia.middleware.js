@@ -9,7 +9,7 @@ export const uploadMediaMiddleware = asyncHandler(async (req, res, next) => {
   if (!file) throw new AppError("Image is required", HttpStatusCodes.BadRequest);
 
   const allowedTypes = ["image/jpeg", "image/png"];
-  const maxFileSize = 5 * 1024 * 1024;
+  const maxFileSize = 30 * 1024 * 1024;
 
   const isValidType = allowedTypes.includes(file.mimetype);
   if (!isValidType) {
@@ -36,7 +36,7 @@ export const updateWithReplace = asyncHandler(async (req, res, next) => {
   }
 
   const allowedTypes = ["image/jpeg", "image/png"];
-  const maxFileSize = 5 * 1024 * 1024;
+  const maxFileSize = 30 * 1024 * 1024;
 
   if (!allowedTypes.includes(file.mimetype)) {
     throw new AppError(`Invalid file type: ${file.originalname}. Allowed types: ${allowedTypes.join(", ")}`, HttpStatusCodes.BadRequest);
