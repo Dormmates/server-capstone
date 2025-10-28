@@ -15,6 +15,7 @@ import {
   getEmailsController,
   getTrainersController,
   removeCCAHeadRoleController,
+  resetPasswordController,
   unArchiveAccountController,
   updateDistributorAccountController,
 } from "../controller/accounts.controller.js";
@@ -37,6 +38,7 @@ router.post("/role/delete/head", verifyAuth, requireRole("head"), removeCCAHeadR
 router.post("/delete/user", verifyAuth, requireRole("head", "trainer"), deleteUserController);
 router.post("/archive/user", verifyAuth, requireRole("head", "trainer"), archiveAccountController);
 router.post("/unArchive/user", verifyAuth, requireRole("head", "trainer"), unArchiveAccountController);
+router.post("/password/reset", verifyAuth, requireRole("head", "trainer"), resetPasswordController);
 
 router.patch("/trainer", verifyAuth, requireRole("head", "trainer"), editTrainerAccountController);
 router.patch("/distributor", verifyAuth, updateDistributorAccountController);

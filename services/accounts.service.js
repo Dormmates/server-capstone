@@ -425,3 +425,17 @@ export const removeCCAHeadRole = async (userId) => {
 export const getEmails = async () => {
   return await prisma.user.findMany({ select: { email: true } });
 };
+
+export const resetPassword = async (userId) => {
+  const resetPassword = await hashPassword("123456");
+
+  return await prisma.user.update({
+    where: {
+      userId,
+    },
+    data: {
+      isDefaultPassword: true,
+      password: resetPassword,
+    },
+  });
+};

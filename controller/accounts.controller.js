@@ -13,6 +13,7 @@ import {
   getEmails,
   getTrainers,
   removeCCAHeadRole,
+  resetPassword,
   unArchiveUser,
 } from "../services/accounts.service.js";
 import { createAccount, getUserById } from "../services/auth.service.js";
@@ -277,4 +278,10 @@ export const removeCCAHeadRoleController = asyncHandler(async (req, res) => {
 export const getEmailsController = asyncHandler(async (req, res) => {
   const emails = await getEmails();
   res.json(emails.map((email) => email.email));
+});
+
+export const resetPasswordController = asyncHandler(async (req, res) => {
+  const { userId } = req.body;
+  await resetPassword(userId);
+  res.json({ message: "Password Reset, Ok." });
 });

@@ -1876,7 +1876,7 @@ export const transferTicket = async ({ remarks, trainerId, scheduleId, controlNu
       if (oldSeat) {
         await tx.showSeat.update({
           where: { scheduleId_seatNumber: { scheduleId, seatNumber: oldSeat.seatNumber } },
-          data: { status: "available", ticketId: null },
+          data: { status: "available" },
         });
       }
     }
