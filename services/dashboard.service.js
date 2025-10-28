@@ -8,7 +8,10 @@ dayjs.extend(timezone);
 
 dayjs.tz.setDefault("Asia/Manila");
 
-export const getTopShowsByTicketSold = async ({ departmentId = null }) => {
+export const getTopShowsByTicketSold = async ({ departmentId = null, dateRange = null }) => {
+  const start = dateRange?.from ? new Date(dateRange.from) : null;
+  const end = dateRange?.to ? new Date(dateRange.to) : null;
+
   const groupedTickets = await prisma.ticket.groupBy({
     by: ["scheduleId"],
     where: {
@@ -22,6 +25,15 @@ export const getTopShowsByTicketSold = async ({ departmentId = null }) => {
           },
         },
       }),
+      ...(start &&
+        end && {
+          schedule: {
+            datetime: {
+              gte: start,
+              lte: end,
+            },
+          },
+        }),
     },
     _count: {
       scheduleId: true,
@@ -79,12 +91,25 @@ export const getTopShowsByTicketSold = async ({ departmentId = null }) => {
   return aggregated.sort((a, b) => b.soldTickets - a.soldTickets).slice(0, 5);
 };
 
-export const getTopShowsByTotalRevenue = async ({ departmentId } = {}) => {
+export const getTopShowsByTotalRevenue = async ({ departmentId, dateRange = null }) => {
+  const start = dateRange?.from ? new Date(dateRange.from) : null;
+  const end = dateRange?.to ? new Date(dateRange.to) : null;
+
   const tickets = await prisma.ticket.findMany({
     where: {
       status: {
         in: ["remitted", "sold", "lost"],
       },
+
+      ...(start &&
+        end && {
+          schedule: {
+            datetime: {
+              gte: start,
+              lte: end,
+            },
+          },
+        }),
       ...(departmentId && {
         schedule: {
           show: {
@@ -154,7 +179,10 @@ export const getTopShowsByTotalRevenue = async ({ departmentId } = {}) => {
     .slice(0, 5);
 };
 
-export const getTopShowsByGenre = async ({ departmentId }) => {
+export const getTopShowsByGenre = async ({ departmentId, dateRange = null }) => {
+  const start = dateRange?.from ? new Date(dateRange.from) : null;
+  const end = dateRange?.to ? new Date(dateRange.to) : null;
+
   const tickets = await prisma.ticket.findMany({
     where: {
       status: {
@@ -167,6 +195,15 @@ export const getTopShowsByGenre = async ({ departmentId }) => {
           },
         },
       }),
+      ...(start &&
+        end && {
+          schedule: {
+            datetime: {
+              gte: start,
+              lte: end,
+            },
+          },
+        }),
     },
     select: {
       ticketPrice: true,
@@ -266,7 +303,10 @@ export const getTopShowsByGenre = async ({ departmentId }) => {
     .slice(0, 10);
 };
 
-export const getTopDistributors = async ({ departmentId }) => {
+export const getTopDistributors = async ({ departmentId, dateRange = null }) => {
+  const start = dateRange?.from ? new Date(dateRange.from) : null;
+  const end = dateRange?.to ? new Date(dateRange.to) : null;
+
   const tickets = await prisma.ticket.findMany({
     where: {
       status: { in: ["remitted", "sold", "lost"] },
@@ -277,6 +317,15 @@ export const getTopDistributors = async ({ departmentId }) => {
           },
         },
       }),
+      ...(start &&
+        end && {
+          schedule: {
+            datetime: {
+              gte: start,
+              lte: end,
+            },
+          },
+        }),
     },
     select: {
       ticketPrice: true,
@@ -456,9 +505,9 @@ export const getDashboardKpiSummary = async ({ departmentId }) => {
   };
 };
 
-export const getUpcomingShowsSummary = async ({ departmentId, daysAhead }) => {
-  const now = dayjs().tz("Asia/Manila");
-  const endDate = daysAhead ? now.add(daysAhead, "day") : now.endOf("year");
+export const getUpcomingShowsSummary = async ({ departmentId, dateRange = null }) => {
+  const start = dateRange?.from ? new Date(dateRange.from) : null;
+  const end = dateRange?.to ? new Date(dateRange.to) : null;
 
   const shows = await prisma.show.findMany({
     where: {
@@ -472,15 +521,20 @@ export const getUpcomingShowsSummary = async ({ departmentId, daysAhead }) => {
           },
         ],
       }),
-      schedules: {
-        some: {
-          isOpen: true,
-          datetime: {
-            gt: now.toDate(),
-            lte: endDate.toDate(),
-          },
-        },
-      },
+      ...(start && end
+        ? {
+            schedules: {
+              some: {
+                isOpen: true,
+                datetime: { gte: start, lte: end },
+              },
+            },
+          }
+        : {
+            schedules: {
+              some: { isOpen: true },
+            },
+          }),
     },
     select: {
       showId: true,
@@ -491,10 +545,10 @@ export const getUpcomingShowsSummary = async ({ departmentId, daysAhead }) => {
       schedules: {
         where: {
           isOpen: true,
-          datetime: {
-            gt: now.toDate(),
-            lte: endDate.toDate(),
-          },
+          ...(start &&
+            end && {
+              datetime: { gte: start, lte: end },
+            }),
         },
         select: { datetime: true },
         orderBy: { datetime: "asc" },

@@ -24,6 +24,7 @@ import {
   getScheduleSummary,
   getScheduleTickets,
   getShowSchedules,
+  getShowsWithAvailbleTicketTransfer,
   getTallyData,
   getTicketLogs,
   getUnallocatedTickets,
@@ -478,13 +479,15 @@ export const getDistributorTicketActivitiesController = asyncHandler(async (req,
 });
 
 export const transferTicketController = asyncHandler(async (req, res) => {
-  const { reason, actionBy, scheduleId, controlNumber, newScheduleId, seatNumber } = req.body;
+  const { remarks, trainerId, scheduleId, controlNumber, newScheduleId, newControlNumber } = req.body;
 
-  if (!reason || !actionBy || !scheduleId || !controlNumber || !newScheduleId) {
+  console.log(req.body);
+
+  if (!trainerId || !scheduleId || !controlNumber || !newScheduleId || !newControlNumber) {
     throw new AppError("Missing Query Fields", HttpStatusCodes.BadRequest);
   }
 
-  await transferTicket({ reason, actionBy, scheduleId, controlNumber, newScheduleId, seatNumber });
+  await transferTicket({ remarks, trainerId, scheduleId, controlNumber, newScheduleId, newControlNumber });
   res.json({ message: "Ticket Transfered" });
 });
 
@@ -508,4 +511,11 @@ export const refundTicketController = asyncHandler(async (req, res) => {
 
   await refundTicket(scheduleId, controlNumber, trainerId, distributorId, remarks);
   res.json({ message: "Ticket Refunded" });
+});
+
+export const getShowsWithAvailbleTicketTransferController = asyncHandler(async (req, res) => {
+  const { departmentId, scheduleId } = req.query;
+
+  const result = await getShowsWithAvailbleTicketTransfer({ departmentId, scheduleId });
+  res.json(result);
 });

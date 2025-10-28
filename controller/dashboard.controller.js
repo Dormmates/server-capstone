@@ -9,30 +9,30 @@ import {
 } from "../services/dashboard.service.js";
 
 export const getTopShowsByTicketSoldController = asyncHandler(async (req, res) => {
-  const { departmentId } = req.query;
+  const { departmentId, from, to } = req.query;
 
-  const result = await getTopShowsByTicketSold({ departmentId });
+  const result = await getTopShowsByTicketSold({ departmentId, dateRange: { from, to } });
   res.json(result);
 });
 
 export const getTopShowsByTotalRevenueController = asyncHandler(async (req, res) => {
-  const { departmentId } = req.query;
+  const { departmentId, from, to } = req.query;
 
-  const result = await getTopShowsByTotalRevenue({ departmentId });
+  const result = await getTopShowsByTotalRevenue({ departmentId, dateRange: { from, to } });
   res.json(result);
 });
 
 export const getTopShowsByGenreController = asyncHandler(async (req, res) => {
-  const { departmentId } = req.query;
+  const { departmentId, from, to } = req.query;
 
-  const result = await getTopShowsByGenre({ departmentId });
+  const result = await getTopShowsByGenre({ departmentId, dateRange: { from, to } });
   res.json(result);
 });
 
 export const getTopDistributorsController = asyncHandler(async (req, res) => {
-  const { departmentId } = req.query;
+  const { departmentId, from, to } = req.query;
 
-  const result = await getTopDistributors({ departmentId });
+  const result = await getTopDistributors({ departmentId, dateRange: { from, to } });
   res.json(result);
 });
 
@@ -44,8 +44,8 @@ export const getKPISummaryController = asyncHandler(async (req, res) => {
 });
 
 export const getUpcomingShowsController = asyncHandler(async (req, res) => {
-  const { departmentId, daysAhead } = req.query;
+  const { departmentId, from, to } = req.query;
 
-  const result = await getUpcomingShowsSummary({ departmentId, daysAhead });
+  const result = await getUpcomingShowsSummary({ departmentId, dateRange: { from, to } });
   res.json(result);
 });

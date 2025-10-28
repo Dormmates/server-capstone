@@ -1708,23 +1708,81 @@ export const refundTicket = async (scheduleId, controlNumber, trainerId, distrib
   });
 };
 
-export const transferTicket = async ({ reason, actionBy, scheduleId, controlNumber, newScheduleId, seatNumber = null }) => {
-  const odlSchedule = await prisma.showSchedule.findUnique({
-    where: { scheduleId },
+export const getShowsWithAvailbleTicketTransfer = async ({ departmentId, scheduleId }) => {
+  const shows = await prisma.show.findMany({
+    where: {
+      ...(departmentId && { departmentId }),
+      schedules: {
+        some: {
+          scheduleId: {
+            not: {
+              equals: scheduleId,
+            },
+          },
+          isOpen: true,
+          datetime: {
+            gte: new Date(),
+          },
+          tickets: {
+            some: {
+              status: "not_allocated",
+            },
+          },
+        },
+      },
+    },
     include: {
-      show: {
-        select: {
-          showId: true,
-          title: true,
+      department: true,
+      schedules: {
+        where: {
+          scheduleId: {
+            not: scheduleId,
+          },
+          isOpen: true,
+          datetime: {
+            gte: new Date(),
+          },
+        },
+        include: {
+          ticketPricing: true,
+          tickets: {
+            where: {
+              status: "not_allocated",
+            },
+            orderBy: {
+              controlNumber: "asc",
+            },
+          },
         },
       },
     },
   });
 
-  if (!odlSchedule) {
-    throw new AppError("Schedule Not Found");
+  return shows.sort((a, b) => {
+    const aDate = a.schedules[0]?.datetime ? new Date(a.schedules[0].datetime).getTime() : Infinity;
+    const bDate = b.schedules[0]?.datetime ? new Date(b.schedules[0].datetime).getTime() : Infinity;
+    return aDate - bDate;
+  });
+};
+
+export const transferTicket = async ({ remarks, trainerId, scheduleId, controlNumber, newScheduleId, newControlNumber }) => {
+  // Fetch old schedule with seats
+  const oldSchedule = await prisma.showSchedule.findUnique({
+    where: { scheduleId },
+    include: {
+      seats: {
+        include: {
+          ticket: true,
+        },
+      },
+    },
+  });
+
+  if (!oldSchedule) {
+    throw new AppError("Original schedule not found");
   }
 
+  // Fetch new schedule with seats
   const newSchedule = await prisma.showSchedule.findUnique({
     where: { scheduleId: newScheduleId },
     include: {
@@ -1733,98 +1791,159 @@ export const transferTicket = async ({ reason, actionBy, scheduleId, controlNumb
           ticket: true,
         },
       },
-      show: {
-        select: {
-          showId: true,
-          title: true,
-        },
-      },
     },
   });
 
   if (!newSchedule) {
-    throw new AppError("Schedule Not Found");
+    throw new AppError("New schedule not found");
   }
 
-  if (newSchedule.seatingType === "controlledSeating" && newSchedule.seats && seatNumber) {
-    const seat = newSchedule.seats.filter((seat) => seat.seatNumber == seatNumber && seat.status == "available");
+  // Fetch old ticket
+  const ticket = await prisma.ticket.findFirst({
+    where: { scheduleId, controlNumber },
+    include: { distributor: true },
+  });
+
+  if (!ticket) {
+    throw new AppError("Original ticket not found");
+  }
+
+  // Fetch new ticket
+  const newTicket = await prisma.ticket.findFirst({
+    where: { scheduleId: newScheduleId, controlNumber: newControlNumber },
+    include: { distributor: true },
+  });
+
+  if (!newTicket) {
+    throw new AppError("Target ticket not found");
+  }
+
+  // Validations
+  if (ticket.isComplimentary) {
+    throw new AppError("Cannot transfer a complimentary ticket");
+  }
+
+  if (ticket.status !== "remitted") {
+    throw new AppError("Only remitted tickets can be transferred");
+  }
+
+  if (newTicket.isComplimentary) {
+    throw new AppError("Cannot transfer to a complimentary ticket");
+  }
+
+  if (newTicket.status !== "not_allocated") {
+    throw new AppError("Target ticket is not available for allocation");
+  }
+
+  // Controlled seating validations
+  if (newSchedule.seatingType === "controlledSeating") {
+    const seat = newSchedule.seats.find((s) => s.ticket.controlNumber === newControlNumber && s.status === "available");
 
     if (!seat) {
       throw new AppError("Selected seat is not available in the new schedule");
     }
   }
 
-  const lastControlNumber = await prisma.ticket.findFirst({
-    where: { scheduleId: newScheduleId },
-    orderBy: { controlNumber: "desc" },
-    select: { controlNumber: true },
-  });
-
-  return await prisma.$transaction(async (tx) => {
-    const updatedTicket = await tx.ticket.update({
-      where: {
-        scheduleId,
-        controlNumber,
-      },
+  // Transaction for atomic transfer
+  await prisma.$transaction(async (tx) => {
+    // Revert old ticket
+    await tx.ticket.update({
+      where: { ticketId: ticket.ticketId },
       data: {
-        scheduleId: newScheduleId,
-        controlNumber: lastControlNumber.controlNumber + 1,
+        status: "not_allocated",
+        distributorId: null,
+        customerEmail: null,
+        customerName: null,
+        trainerSold: false,
       },
     });
 
-    if (newSchedule.seatingType === "controlledSeating" && newSchedule.seats && seatNumber) {
-      const updatedSeat = await tx.showSeat.update({
-        where: {
-          scheduleId,
-          seatNumber,
-        },
-        data: {
-          ticketId: updatedTicket.ticketId,
-          status: "sold",
-        },
-      });
+    // Assign new ticket
+    await tx.ticket.update({
+      where: { ticketId: newTicket.ticketId },
+      data: {
+        status: "remitted",
+        distributorId: ticket.distributorId ?? null,
+        customerEmail: ticket.customerEmail,
+        customerName: ticket.customerName,
+        trainerSold: ticket.trainerSold,
+      },
+    });
 
-      await tx.ticket.update({
-        where: {
-          ticketId: updatedTicket.ticketId,
-        },
-        data: {
-          ticketSection: updatedSeat.seatSection.includes("balcony") ? "balcony" : "orchestra",
-        },
-      });
-
-      if (odlSchedule.seatingType === "controlledSeating") {
+    // Update old schedule seat if controlled
+    if (oldSchedule.seatingType === "controlledSeating") {
+      const oldSeat = oldSchedule.seats.find((s) => s.ticket.controlNumber === ticket.controlNumber);
+      if (oldSeat) {
         await tx.showSeat.update({
-          where: {
-            scheduleId,
-            ticketId: updatedTicket.ticketId,
-          },
-          data: {
-            ticketId: null,
-            status: "available",
-          },
+          where: { scheduleId_seatNumber: { scheduleId, seatNumber: oldSeat.seatNumber } },
+          data: { status: "available", ticketId: null },
         });
       }
     }
 
+    // Update new schedule seat if controlled
+    if (newSchedule.seatingType === "controlledSeating") {
+      const newSeat = newSchedule.seats.find((s) => s.ticket.controlNumber === newControlNumber && s.status === "available");
+      if (newSeat) {
+        await tx.showSeat.update({
+          where: { scheduleId_seatNumber: { scheduleId: newScheduleId, seatNumber: newSeat.seatNumber } },
+          data: { status: "sold", ticketId: newTicket.ticketId },
+        });
+      }
+    }
+
+    // Log unremit old ticket
     await tx.ticketActionLog.create({
       data: {
         actionLogId: crypto.randomUUID(),
+        actionBy: trainerId,
+        distributorId: ticket.distributorId ?? null,
+        scheduleId,
+        actionType: "unremit",
+        remarks,
+        logs: { create: { ticketId: ticket.ticketId } },
+      },
+    });
+
+    // Log transer old ticket
+    await tx.ticketActionLog.create({
+      data: {
+        actionLogId: crypto.randomUUID(),
+        actionBy: trainerId,
+        distributorId: ticket.distributorId ?? null,
+        scheduleId,
         actionType: "transfer",
-        actionBy,
-        remarks: reason,
-        metaData: {
-          oldControlNumber: Number(controlNumber),
-          oldShowId: odlSchedule.show.showId,
-          oldShowTitle: odlSchedule.show.title,
-          oldScheduleId: odlSchedule.scheduleId,
-          oldScheduleDate: odlSchedule.datetime,
-          newShowId: newSchedule.show.showId,
-          newShowTitle: newSchedule.show.title,
-          newScheduleId: newSchedule.scheduleId,
-          newScheduleDate: newSchedule.datetime,
-        },
+        remarks,
+        logs: { create: { ticketId: ticket.ticketId } },
+      },
+    });
+
+    // Log transfer new ticket
+    await tx.ticketActionLog.create({
+      data: {
+        actionLogId: crypto.randomUUID(),
+        actionBy: trainerId,
+        distributorId: ticket.distributorId ?? null,
+        scheduleId: newScheduleId,
+        actionType: "transfer",
+        remarks,
+        logs: { create: { ticketId: newTicket.ticketId } },
+      },
+    });
+
+    // Log remit new ticket
+    await tx.ticketActionLog.create({
+      data: {
+        actionLogId: crypto.randomUUID(),
+        actionBy: trainerId,
+        distributorId: ticket.distributorId ?? null,
+        scheduleId: newScheduleId,
+        actionType: "remit",
+        remarks,
+        logs: { create: { ticketId: newTicket.ticketId } },
       },
     });
   });
+
+  return true;
 };
