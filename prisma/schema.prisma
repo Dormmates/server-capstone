@@ -62,10 +62,6 @@ model Reservation {
   @@index([scheduleId], map: "reservations_ibkf_1_idx")
 }
 
-model SeatMapMetadata {
-  id       Int  @id @default(autoincrement())
-  metadata Json
-}
 
 model ShowGenre {
   showId  String @db.VarChar(36)
