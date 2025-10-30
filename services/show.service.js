@@ -233,6 +233,9 @@ export const generateSalesReport = async (showId, scheduleIds) => {
         where: scheduleIds ? { scheduleId: { in: scheduleIds } } : undefined,
         include: {
           tickets: {
+            where: {
+              isComplimentary: false,
+            },
             include: {
               distributor: {
                 include: {

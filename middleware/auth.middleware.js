@@ -2,15 +2,16 @@ import jwt from "jsonwebtoken";
 import { AppError, HttpStatusCodes } from "./errorHandler.middleware.js";
 
 export const verifyAuth = (req, res, next) => {
-  const token = req.cookies.authToken;
+  const authHeader = req.headers.authorization;
 
-  if (!token) {
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
     return next(new AppError("Authentication required", HttpStatusCodes.Unauthorized));
   }
 
+  const token = authHeader.split(" ")[1];
+
   try {
     const decoded = jwt.verify(token, process.env.TOKEN_KEY);
-
     req.user = decoded;
     next();
   } catch (err) {
