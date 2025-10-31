@@ -47,22 +47,6 @@ model Genre {
   showGenres ShowGenre[] @relation("ShowGenre_GenreToGenre")
 }
 
-model Reservation {
-  reservationId     String             @id @db.VarChar(36)
-  scheduleId        String             @db.VarChar(36)
-  customerFirstName String             @db.VarChar(100)
-  customerLastName  String             @db.VarChar(100)
-  email             String             @db.VarChar(150)
-  contactNumber     String             @db.VarChar(20)
-  status            ReservationStatus? @default(pending)
-  reservedAt        DateTime?          @default(now()) @db.Timestamp(0)
-  schedule          ShowSchedule       @relation(fields: [scheduleId], references: [scheduleId], onDelete: Cascade, map: "reservations_ibfk_1")
-  reservedTickets   ReservedTicket[]
-
-  @@index([scheduleId], map: "reservations_ibkf_1_idx")
-}
-
-
 model ShowGenre {
   showId  String @db.VarChar(36)
   genre   String @db.VarChar(100)
@@ -105,7 +89,6 @@ model ShowSchedule {
   maleCount       Int?              @default(0)
   datetime        DateTime          @db.DateTime(0)
   ticketPricingId String?           @db.VarChar(36)
-  reservations    Reservation[]
   ticketPricing   TicketPricing?    @relation(fields: [ticketPricingId], references: [id], onUpdate: Restrict, onDelete: Restrict, map: "fk_showschedules_ticketpricing")
   show            Show              @relation(fields: [showId], references: [showId], onDelete: Cascade, map: "showschedules_ibfk_1")
   seats           ShowSeat[]
@@ -145,7 +128,6 @@ model Ticket {
   customerEmail      String?          @db.VarChar(45)
   trainerSold        Boolean          @default(false)
   logs               TicketLog[]
-  reservedTickets    ReservedTicket[]
   seats              ShowSeat[]
   schedule           ShowSchedule     @relation(fields: [scheduleId], references: [scheduleId], onDelete: Cascade, map: "ticket_ibfk_1")
   distributor        User?            @relation(fields: [distributorId], references: [userId], onDelete: Restrict, map: "ticket_ibfk_2")
@@ -184,16 +166,6 @@ model UserRole {
 
   @@id([userId, role])
   @@index([role], map: "roles")
-}
-
-model ReservedTicket {
-  reservationId String      @db.VarChar(36)
-  ticketId      String      @db.VarChar(36)
-  reservation   Reservation @relation(fields: [reservationId], references: [reservationId], onDelete: Cascade, map: "reservation")
-  ticket        Ticket      @relation(fields: [ticketId], references: [ticketId], onDelete: Cascade, map: "ticket")
-
-  @@id([reservationId, ticketId])
-  @@index([ticketId], map: "ticket_idx")
 }
 
 model TicketActionLog {
@@ -271,23 +243,19 @@ enum ShowType {
 
 enum SeatStatus {
   reserved
-  vip
   available
   sold
+  paidToCCA
   complimentarySeat
 }
 
 enum TicketStatus {
   remitted
+  paidToCCA
   sold
   lost
   not_allocated
   allocated
-}
-
-enum ReservationStatus {
-  pending
-  verified
 }
 
 enum SeatingType {
@@ -312,12 +280,13 @@ enum SeatSection {
 enum TicketActionType {
   allocate
   unallocate
-  remit
-  unremit
+  payToCCA
+  unPayToCCA
   soldTicket
   unsoldTicket
   transfer
   refund
+  remit
 }
 
 enum NotificationType {

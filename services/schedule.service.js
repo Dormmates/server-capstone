@@ -76,7 +76,19 @@ export const closeSchedule = async (scheduleId) => {
   if (!schedule) {
     throw new AppError("Schedule not found", HttpStatusCodes.NotFound);
   }
-  return await prisma.showSchedule.update({ where: { scheduleId }, data: { isOpen: false } });
+
+  await prisma.$transaction(async (tx) => {
+    await tx.showSchedule.update({ where: { scheduleId }, data: { isOpen: false } });
+    await tx.ticket.updateMany({
+      where: {
+        scheduleId,
+        status: "paidToCCA",
+      },
+      data: {
+        status: "remitted",
+      },
+    });
+  });
 };
 
 export const openSchedule = async (scheduleId) => {
@@ -239,82 +251,6 @@ export const copySchedule = async ({ scheduleId, newDateTime }) => {
   });
 };
 
-/**
- * Old Version - orchestra tickets and balcony tickets are separate
- */
-
-// export const generateScheduleTicketsAndSeats = async ({
-//   tx = prisma,
-//   scheduleId,
-//   seatPricing,
-//   seats,
-//   ticketPricing,
-//   controlNumbers,
-//   seatingConfiguration,
-// }) => {
-//   const tickets = [];
-//   const seatsData = [];
-
-//   const orchestra = controlNumbers?.orchestra || [];
-//   const balcony = controlNumbers?.balcony || [];
-//   const complimentary = controlNumbers?.complimentary || [];
-
-//   const isControlled = seatingConfiguration === "controlledSeating";
-//   const isFixedPrice = seatPricing === "fixed";
-
-//   const createTicketAndLinkSeat = (num, ticketSection, complimentaryTicket = false) => {
-//     let price = ticketPricing.fixedPrice;
-//     let seat = null;
-
-//     if (isControlled) {
-//       seat = seats.find((s) => s.ticketControlNumber === num);
-//       if (!seat) throw new AppError(`No matching seat for control number ${num}`);
-//       if (!isFixedPrice && !complimentaryTicket) price = seat.ticketPrice;
-//     }
-
-//     const ticketId = crypto.randomUUID();
-
-//     tickets.push({
-//       ticketId,
-//       scheduleId,
-//       controlNumber: num,
-//       ticketPrice: complimentaryTicket ? 0 : price,
-//       isComplimentary: complimentaryTicket,
-//       ticketSection,
-//     });
-
-//     if (seat) {
-//       const seatIndex = seatsData.findIndex((s) => s.seatNumber === seat.seatNumber);
-//       if (seatIndex !== -1) {
-//         seatsData[seatIndex].ticketId = ticketId;
-//       }
-//     }
-//   };
-
-//   if (isControlled) {
-//     seats.forEach((s) => {
-//       seatsData.push({
-//         scheduleId,
-//         seatNumber: s.seatNumber,
-//         seatSection: s.section,
-//         rotation: s.rotation,
-//         x: s.x,
-//         y: s.y,
-//         ticketId: null,
-//       });
-//     });
-//   }
-
-//   orchestra.forEach((num) => createTicketAndLinkSeat(num, "orchestra"));
-//   balcony.forEach((num) => createTicketAndLinkSeat(num, "balcony"));
-//   complimentary.forEach((num) => createTicketAndLinkSeat(num, null, true));
-
-//   await tx.ticket.createMany({ data: tickets });
-//   await tx.showSeat.createMany({ data: seatsData });
-
-//   return tickets;
-// };
-
 export const generateScheduleTicketsAndSeats = async ({
   tx = prisma,
   scheduleId,
@@ -411,13 +347,13 @@ export const getScheduleDetails = async (scheduleId) => {
 };
 
 export const getScheduleSummary = async (scheduleId) => {
-  const schedule = await prisma.showSchedule.findUnique({ where: { scheduleId }, include: { ticketPricing: true } });
+  const schedule = await prisma.showSchedule.findUnique({
+    where: { scheduleId },
+    include: { ticketPricing: true },
+  });
 
-  if (!schedule) {
-    throw new AppError("Schedule Not Found");
-  }
+  if (!schedule) throw new AppError("Schedule Not Found");
 
-  // Tickets Summary
   const scheduleTickets = await prisma.ticket.findMany({ where: { scheduleId } });
 
   const summarizeTickets = (tickets) => {
@@ -425,43 +361,24 @@ export const getScheduleSummary = async (scheduleId) => {
       (acc, t) => {
         acc.total += 1;
 
-        if (["sold", "remitted", "lost"].includes(t.status)) {
-          acc.sold += 1;
-        }
-
-        if (["allocated", "not_allocated"].includes(t.status)) {
-          acc.remaining += 1;
-        }
-
-        if (["not_allocated"].includes(t.status)) {
-          acc.notAllocated += 1;
-        }
-
-        if (["allocated"].includes(t.status)) {
-          acc.allocated += 1;
-        }
-
-        if (["sold", "allocated"].includes(t.status)) {
-          acc.unremitted += 1;
-        }
-
-        if (["remitted"].includes(t.status)) {
-          acc.remitted += 1;
-        }
+        if (["sold", "paidToCCA", "remitted"].includes(t.status)) acc.sold += 1;
+        if (["allocated", "not_allocated"].includes(t.status)) acc.remaining += 1;
+        if (t.status === "not_allocated") acc.notAllocated += 1;
+        if (t.status === "allocated") acc.allocated += 1;
+        if (t.status === "sold") acc.unpaid += 1;
+        if (["paidToCCA", "remitted"].includes(t.status)) acc.paid += 1;
 
         return acc;
       },
-      { total: 0, sold: 0, remaining: 0, notAllocated: 0, allocated: 0, unremitted: 0, remitted: 0 }
+      { total: 0, sold: 0, remaining: 0, notAllocated: 0, allocated: 0, unpaid: 0, paid: 0 }
     );
   };
 
   const complimentaryTickets = scheduleTickets.filter((t) => t.isComplimentary).length;
   const regularTickets = summarizeTickets(scheduleTickets.filter((t) => !t.isComplimentary));
 
-  // Distributor Summary
-  const distributors = await prisma.user.findMany({
+  const distributorsWithTickets = await prisma.user.findMany({
     where: {
-      distributor: { isNot: null },
       tickets: { some: { scheduleId } },
     },
     select: {
@@ -469,105 +386,74 @@ export const getScheduleSummary = async (scheduleId) => {
       firstName: true,
       lastName: true,
       email: true,
+      tickets: {
+        where: { scheduleId },
+        select: {
+          ticketId: true,
+          ticketPrice: true,
+          status: true,
+          isComplimentary: true,
+        },
+      },
     },
   });
 
-  const mappedDistributors = await Promise.all(
-    distributors.map(async (d) => {
-      const data = await getDistributorAllocatedTickets({ distributorId: d.userId, scheduleId });
+  const mappedDistributors = distributorsWithTickets.map((d) => {
+    const tickets = d.tickets.filter((t) => !t.isComplimentary);
 
-      const totalAllocatedTickets = data.length;
-      const soldTickets = data.filter((t) => t.status === "sold" || t.isRemitted).length;
-      const remittedTickets = data.filter((t) => t.isRemitted).length;
-      const unsoldTickets = totalAllocatedTickets - soldTickets;
-      const pendingRemittance = soldTickets - remittedTickets;
+    const totalAllocatedTickets = tickets.length;
 
-      const expected = data.reduce((acc, t) => acc + (Number(t.ticketPrice) - schedule.ticketPricing.commissionFee), 0);
-      const remitted = data.filter((t) => t.isRemitted).reduce((acc, t) => acc + (Number(t.ticketPrice) - schedule.ticketPricing.commissionFee), 0);
+    const soldTickets = tickets.filter((t) => ["sold", "remitted", "paidToCCA"].includes(t.status)).length;
+    const paidTickets = tickets.filter((t) => t.status === "paidToCCA").length;
+    const unPaidTickets = tickets.filter((t) => t.status === "sold").length;
+    const unsoldTickets = totalAllocatedTickets - soldTickets;
+    const expected = tickets.reduce((acc, t) => acc + Number(t.ticketPrice - schedule.ticketPricing.commissionFee), 0);
+    const paid = tickets
+      .filter((t) => ["remitted", "paidToCCA"].includes(t.status))
+      .reduce((acc, t) => acc + Number(t.ticketPrice - schedule.ticketPricing.commissionFee), 0);
 
-      const balanceDue = expected - remitted;
+    const balanceDue = expected - paid;
 
-      return {
-        ...d,
-        totalAllocatedTickets,
-        soldTickets,
-        unsoldTickets,
-        remittedTickets,
-        pendingRemittance,
-        expected,
-        remitted,
-        balanceDue,
-      };
-    })
-  );
+    return {
+      userId: d.userId,
+      firstName: d.firstName,
+      lastName: d.lastName,
+      email: d.email,
+      totalAllocatedTickets,
+      soldTickets,
+      unsoldTickets,
+      paidTickets,
+      unPaidTickets,
+      expected,
+      paid,
+      balanceDue,
+    };
+  });
 
-  //Ticket Prices
-  let ticketPrice;
-  let ticketPricesBySection;
-
-  if (schedule.seatingType === "controlledSeating") {
-    const seats = await prisma.showSeat.findMany({
-      where: { scheduleId },
-      include: {
-        ticket: {
-          select: { ticketPrice: true },
-        },
-      },
-    });
-
-    ticketPricesBySection = seats.reduce((acc, seat) => {
-      const section = seat.seatSection;
-      const price = seat.ticket?.ticketPrice || 0;
-
-      if (price > 0 && !acc[section]) {
-        acc[section] = price;
-      }
-
-      return acc;
-    }, {});
-  } else {
-    ticketPrice = scheduleTickets.find((ticket) => ticket.ticketPrice > 0)?.ticketPrice || 0;
-  }
-
-  // Distributor Totals
   const distributorsTotal = mappedDistributors.reduce(
     (acc, d) => {
       acc.allocated += d.totalAllocatedTickets;
       acc.sold += d.soldTickets;
       acc.unsold += d.unsoldTickets;
-      acc.remitted += d.remitted;
+      acc.paidToCCA += d.paid;
       return acc;
     },
-    { allocated: 0, sold: 0, unsold: 0, remitted: 0 }
+    { allocated: 0, sold: 0, unsold: 0, paidToCCA: 0 }
   );
 
-  // Sales Summary
-  const expectedAgg = await prisma.ticket.aggregate({
-    where: { scheduleId, isComplimentary: false },
-    _sum: { ticketPrice: true },
-  });
+  const totalPaidToCCA = scheduleTickets
+    .filter((t) => t.status === "paidToCCA")
+    .reduce((acc, t) => acc + (Number(t.ticketPrice) - schedule.ticketPricing.commissionFee), 0);
 
-  const currentAgg = await prisma.ticket.aggregate({
-    where: {
-      scheduleId,
-      status: { in: ["lost", "sold", "remitted"] },
-      isComplimentary: false,
-    },
-    _sum: { ticketPrice: true },
-  });
+  const totalRemittedToFinance = scheduleTickets
+    .filter((t) => t.status === "remitted")
+    .reduce((acc, t) => acc + (Number(t.ticketPrice) - schedule.ticketPricing.commissionFee), 0);
 
-  // gross totals
-  const grossExpected = expectedAgg._sum.ticketPrice || 0;
-  const grossCurrent = currentAgg._sum.ticketPrice || 0;
+  const totalExpected = scheduleTickets
+    .filter((t) => !t.isComplimentary)
+    .reduce((acc, t) => acc + (Number(t.ticketPrice) - schedule.ticketPricing.commissionFee), 0);
 
-  // commission totals
-  const commissionExpected = schedule.ticketPricing.commissionFee * regularTickets.total;
-  const commissionCurrent = schedule.ticketPricing.commissionFee * regularTickets.sold;
-
-  // net values
-  const expectedSales = grossExpected - commissionExpected;
-  const currentSales = grossCurrent - commissionCurrent;
-  const remainingSales = expectedSales - currentSales;
+  const cashOnHand = totalPaidToCCA;
 
   return {
     ticketsSummary: {
@@ -580,14 +466,9 @@ export const getScheduleSummary = async (scheduleId) => {
       distributorsTotal,
     },
     salesSummary: {
-      expected: expectedSales,
-      current: currentSales,
-      remaining: remainingSales,
-      netAfterCommission: currentSales - schedule.commissionFee * (regularTickets.sold + regularTickets.sold),
-    },
-    schedulePrices: {
-      ticketPrice,
-      ticketPricesBySection,
+      expected: totalExpected,
+      cashOnHand,
+      remittedToFinance: totalRemittedToFinance,
     },
   };
 };
@@ -639,7 +520,7 @@ export const getScheduleTickets = async (scheduleId) => {
       distributorType: ticket?.distributor?.distributor?.distributorType ? ticket.distributor.distributor.distributorType : null,
       seatNumber: ticket.seats[0]?.seatNumber ?? null,
       seatSection: ticket.seats[0]?.seatSection ?? null,
-      isRemitted: ticket.status === "lost" || ticket.status === "sold" || ticket.status === "remitted",
+      isPaid: ticket.status === "paidToCCA",
       ticketTransferMetaData: transferLogs.length > 0 ? transferLogs : null,
     };
   });
@@ -1290,7 +1171,7 @@ export const unallocateTicket = async ({ scheduleId, distributorId, unallocatedB
   }
 };
 
-export const remitTicketSales = async ({
+export const payTicketSales = async ({
   sold,
   lost,
   discounted = [],
@@ -1357,17 +1238,16 @@ export const remitTicketSales = async ({
   const actionLogId = crypto.randomUUID();
 
   const res = await prisma.$transaction(async (tx) => {
-    // Sold → remitted
     if (sold.length > 0) {
       await tx.ticket.updateMany({
         where: { scheduleId, controlNumber: { in: sold } },
-        data: { status: "remitted" },
+        data: { status: "paidToCCA" },
       });
 
       // Update seat status to sold
       await tx.showSeat.updateMany({
         where: { scheduleId, ticketId: { in: sold.map((cn) => ticketIdMap[cn]) } },
-        data: { status: "sold" },
+        data: { status: "paidToCCA" },
       });
     }
 
@@ -1381,7 +1261,7 @@ export const remitTicketSales = async ({
       // Update seat status to sold
       await tx.showSeat.updateMany({
         where: { scheduleId, ticketId: { in: sold.map((cn) => ticketIdMap[cn]) } },
-        data: { status: "sold" },
+        data: { status: "paidToCCA" },
       });
     }
 
@@ -1395,7 +1275,7 @@ export const remitTicketSales = async ({
       // Update seat status to sold
       await tx.showSeat.updateMany({
         where: { scheduleId, ticketId: { in: sold.map((cn) => ticketIdMap[cn]) } },
-        data: { status: "sold" },
+        data: { status: "paidToCCA" },
       });
     }
 
@@ -1407,7 +1287,7 @@ export const remitTicketSales = async ({
         distributorId,
         scheduleId,
         remarks,
-        actionType: "remit",
+        actionType: "payToCCA",
         logs: {
           createMany: {
             data: [
@@ -1427,11 +1307,6 @@ export const remitTicketSales = async ({
   });
 
   if (res) {
-    console.log({
-      amountRemitted: totalAmount - totalCommission,
-      totalCommission,
-    });
-
     sendTicketNotificationsToDistributor({
       actionBy,
       distributorId,
@@ -1447,7 +1322,7 @@ export const remitTicketSales = async ({
   }
 };
 
-export const unremitTicketSales = async ({ remittedTickets, scheduleId, distributorId, actionBy, remarks = null }) => {
+export const unPayTicketSales = async ({ remittedTickets, scheduleId, distributorId, actionBy, remarks = null }) => {
   const schedule = await prisma.showSchedule.findUnique({
     where: { scheduleId },
   });
@@ -1488,7 +1363,7 @@ export const unremitTicketSales = async ({ remittedTickets, scheduleId, distribu
       where: {
         scheduleId,
         controlNumber: { in: remittedTickets },
-        status: "remitted",
+        status: "paidToCCA",
       },
       data: { status: "allocated" },
     });
@@ -1501,7 +1376,7 @@ export const unremitTicketSales = async ({ remittedTickets, scheduleId, distribu
             in: remittedTickets,
           },
         },
-        status: "sold",
+        status: "paidToCCA",
       },
       data: {
         status: "reserved",
@@ -1515,7 +1390,7 @@ export const unremitTicketSales = async ({ remittedTickets, scheduleId, distribu
         distributorId,
         scheduleId,
         remarks,
-        actionType: "unremit",
+        actionType: "unPayToCCA",
         logs: {
           createMany: {
             data: remittedTickets.map((cn) => ({
@@ -1608,7 +1483,7 @@ export const trainerSellTicket = async (scheduleId, controlNumber, trainerId, cu
   await prisma.$transaction(async (tx) => {
     await tx.ticket.update({
       where: { scheduleId, ticketId: ticket.ticketId },
-      data: { status: "remitted", customerEmail, customerName, distributorId: trainerId, trainerSold: true },
+      data: { status: "paidToCCA", customerEmail, customerName, distributorId: trainerId, trainerSold: true },
     });
 
     const seat = await tx.showSeat.findFirst({
@@ -1623,7 +1498,7 @@ export const trainerSellTicket = async (scheduleId, controlNumber, trainerId, cu
             seatNumber: seat.seatNumber,
           },
         },
-        data: { status: "sold" },
+        data: { status: "paidToCCA" },
       });
     }
 
@@ -1633,7 +1508,7 @@ export const trainerSellTicket = async (scheduleId, controlNumber, trainerId, cu
         actionBy: trainerId,
         distributorId: trainerId,
         scheduleId,
-        actionType: "remit",
+        actionType: "payToCCA",
         logs: {
           createMany: {
             data: {
@@ -1658,8 +1533,8 @@ export const refundTicket = async (scheduleId, controlNumber, trainerId, distrib
     throw new AppError("Cannot refund a complimentary ticket");
   }
 
-  if (ticket.status !== "remitted") {
-    throw new AppError("You can only refund ticket that is remitted");
+  if (ticket.status !== "paidToCCA") {
+    throw new AppError("You can only refund ticket that the payment still on the CCA");
   }
 
   const actionLogId = crypto.randomUUID();
@@ -1946,4 +1821,115 @@ export const transferTicket = async ({ remarks, trainerId, scheduleId, controlNu
   });
 
   return true;
+};
+
+export const checkScheduleToBeClosed = async (scheduleId) => {
+  const schedule = await prisma.showSchedule.findUnique({
+    where: { scheduleId },
+    select: {
+      ticketPricing: {
+        select: {
+          commissionFee: true,
+        },
+      },
+    },
+  });
+
+  const scheduleTickets = await prisma.ticket.findMany({
+    where: { scheduleId, isComplimentary: false },
+    select: {
+      controlNumber: true,
+      ticketPrice: true,
+      status: true,
+      distributor: {
+        select: {
+          userId: true,
+          firstName: true,
+          lastName: true,
+          distributor: {
+            select: {
+              distributorType: true,
+              department: {
+                select: { name: true },
+              },
+            },
+          },
+        },
+      },
+    },
+    orderBy: {
+      distributor: {
+        lastName: "asc",
+      },
+    },
+  });
+
+  if (!scheduleTickets.length) {
+    return {
+      message: "No tickets found for this schedule",
+      distributors: [],
+      allTickets: [],
+      canBeClosed: true,
+      summary: { totalDistributors: 0, withBalanceDue: 0, totalUnpaid: 0 },
+    };
+  }
+
+  const distributorsMap = {};
+
+  for (const ticket of scheduleTickets) {
+    const distributorId = ticket.distributor?.userId || null;
+
+    if (!distributorId) continue;
+    const isPaid = (ticket.status === "paidToCCA") | (ticket.status === "remitted");
+    const isSold = ticket.status === "sold";
+    const commissionFee = Number(schedule?.ticketPricing?.commissionFee || 0);
+    const ticketPrice = (Number(ticket.ticketPrice) || 0) - commissionFee;
+
+    if (!distributorsMap[distributorId]) {
+      distributorsMap[distributorId] = {
+        distributorId,
+        name: ticket.distributor ? `${ticket.distributor.lastName}, ${ticket.distributor.firstName}` : "Unassigned",
+        department: ticket.distributor?.distributor?.department?.name || "N/A",
+        distributorType: ticket.distributor?.distributor?.distributorType || "N/A",
+        totalTickets: 0,
+        markedSoldTickets: 0,
+        paidTickets: 0,
+        unpaidTickets: 0,
+        unpaidAmount: 0,
+        totalPaid: 0,
+        tickets: [],
+      };
+    }
+
+    const info = distributorsMap[distributorId];
+
+    info.totalTickets++;
+    info.tickets.push(ticket);
+
+    if (isSold) info.markedSoldTickets++;
+    if (isPaid) {
+      info.paidTickets++;
+      info.totalPaid += ticketPrice;
+    } else {
+      info.unpaidTickets++;
+      info.unpaidAmount += ticketPrice;
+    }
+  }
+
+  const distributors = Object.values(distributorsMap);
+  const withBalanceDue = distributors.filter((d) => d.unpaidAmount > 0);
+  const totalUnpaid = withBalanceDue.reduce((acc, d) => acc + d.unpaidAmount, 0);
+
+  return {
+    canBeClosed: withBalanceDue.length === 0,
+    summary: {
+      totalDistributors: distributors.length,
+      withBalanceDue: withBalanceDue.length,
+      totalUnpaid,
+      notAllocatedTickets: scheduleTickets.filter((t) => t.status === "not_allocated"),
+    },
+    distributors,
+    withBalanceDue,
+    unAllocatedTickets: scheduleTickets.filter((t) => t.status === "not_allocated"),
+  };
 };

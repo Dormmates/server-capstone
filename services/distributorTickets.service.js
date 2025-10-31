@@ -46,7 +46,7 @@ export const getDistributorAllocatedTickets = async ({ distributorId, scheduleId
       seatSection: ticket.seats[0]?.seatSection ?? null,
       dateAllocated: allocationLog?.action.actionDate ?? null,
       allocatedBy: allocationLog?.action.actionBy ?? null,
-      isRemitted: ["lost", "remitted"].includes(ticket.status),
+      isPaid: ["lost", "paidToCCA", "remitted"].includes(ticket.status),
       distributor: allocationLog?.action.distributor
         ? `${allocationLog.action.distributor.firstName} ${allocationLog.action.distributor.lastName}`
         : null,
@@ -55,15 +55,13 @@ export const getDistributorAllocatedTickets = async ({ distributorId, scheduleId
 };
 
 // Get remittance history for a distributor
-export const getDistributorRemittanceHistory = async ({ distributorId, scheduleId }) => {
-  const whereClause = {
-    distributorId,
-    actionType: { in: ["remit", "unremit"] },
-    ...(scheduleId && { scheduleId }),
-  };
-
+export const getDistributorPaymentHistory = async ({ distributorId, scheduleId }) => {
   const remittanceHistory = await prisma.ticketActionLog.findMany({
-    where: whereClause,
+    where: {
+      distributorId,
+      actionType: { in: ["payToCCA", "unPayToCCA"] },
+      ...(scheduleId && { scheduleId }),
+    },
     select: {
       scheduleId: true,
       actionByUser: { select: { firstName: true, lastName: true } },
@@ -219,7 +217,7 @@ export const getDistributorShowsAndTicketsAllocated = async ({ distributorId }) 
       controlNumber: ticket.controlNumber,
       seatNumber: ticket.seats[0]?.seatNumber ?? null,
       ticketSection: ticket.seats[0]?.seatSection ?? null,
-      isRemitted: ["lost", "remitted"].includes(ticket.status),
+      isPaid: ["lost", "paidToCCA"].includes(ticket.status),
       dateAllocated: allocationLog?.action.actionDate ?? null,
       allocatedBy: allocationLog?.action.actionBy ?? null,
     };

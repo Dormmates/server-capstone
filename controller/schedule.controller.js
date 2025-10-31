@@ -3,7 +3,7 @@ import { AppError, HttpStatusCodes } from "../middleware/errorHandler.middleware
 import {
   getDistributorAllocatedTickets,
   getDistributorAllocationHistory,
-  getDistributorRemittanceHistory,
+  getDistributorPaymentHistory,
   markTicketAsSold,
   markTicketAsUnSold,
 } from "../services/distributorTickets.service.js";
@@ -11,6 +11,7 @@ import {
   addShowSchedule,
   addTallyData,
   allocateTicket,
+  checkScheduleToBeClosed,
   closeSchedule,
   copySchedule,
   deleteSchedule,
@@ -29,13 +30,13 @@ import {
   getTicketLogs,
   getUnallocatedTickets,
   openSchedule,
+  payTicketSales,
   refundTicket,
-  remitTicketSales,
   reschedule,
   trainerSellTicket,
   transferTicket,
   unallocateTicket,
-  unremitTicketSales,
+  unPayTicketSales,
 } from "../services/schedule.service.js";
 import { doesShowExist } from "../services/show.service.js";
 import { convertDates } from "../utils/convert.utils.js";
@@ -64,30 +65,35 @@ export const addShowScheduleController = asyncHandler(async (req, res) => {
 
       const formattedDates = convertDates(dates);
 
-      await prisma.$transaction(async (tx) => {
-        const createdSchedules = await addShowSchedule({
-          dates: formattedDates,
-          showId,
-          seatingType: seatingConfiguration,
-          ticketType,
-          ticketPricing,
-          contactNumber,
-          facebookLink,
-          tx,
-        });
-
-        for (const sched of createdSchedules) {
-          await generateScheduleTicketsAndSeats({
-            tx,
-            scheduleId: sched.scheduleId,
-            seatPricing,
-            seats,
+      await prisma.$transaction(
+        async (tx) => {
+          const createdSchedules = await addShowSchedule({
+            dates: formattedDates,
+            showId,
+            seatingType: seatingConfiguration,
+            ticketType,
             ticketPricing,
-            controlNumbers,
-            seatingConfiguration,
+            contactNumber,
+            facebookLink,
+            tx,
           });
+
+          for (const sched of createdSchedules) {
+            await generateScheduleTicketsAndSeats({
+              tx,
+              scheduleId: sched.scheduleId,
+              seatPricing,
+              seats,
+              ticketPricing,
+              controlNumbers,
+              seatingConfiguration,
+            });
+          }
+        },
+        {
+          timeout: 120_000,
         }
-      });
+      );
 
       res.status(HttpStatusCodes.OK).json({ message: "Added Schedules" });
       break;
@@ -368,25 +374,25 @@ export const getAllDistributorAllocationHistoryController = asyncHandler(async (
   res.json(data);
 });
 
-export const getDistributorRemittanceHistoryController = asyncHandler(async (req, res, next) => {
+export const getDistributorPaymentHistoryController = asyncHandler(async (req, res, next) => {
   const { scheduleId, distributorId } = req.params;
 
   if (!scheduleId || !distributorId) {
     throw new AppError("Missing Post Fields", HttpStatusCodes.BadRequest);
   }
 
-  const data = await getDistributorRemittanceHistory({ distributorId, scheduleId });
+  const data = await getDistributorPaymentHistory({ distributorId, scheduleId });
   res.json(data);
 });
 
-export const getAllDistributorRemittanceHistoryController = asyncHandler(async (req, res, next) => {
+export const getAllDistributorPaymentHistoryController = asyncHandler(async (req, res, next) => {
   const { distributorId } = req.params;
 
   if (!distributorId) {
     throw new AppError("Missing Post Fields", HttpStatusCodes.BadRequest);
   }
 
-  const data = await getDistributorRemittanceHistory({ distributorId, scheduleId: null });
+  const data = await getDistributorPaymentHistory({ distributorId, scheduleId: null });
   res.json(data);
 });
 
@@ -423,25 +429,25 @@ export const markTicketAsUnSoldController = asyncHandler(async (req, res, next) 
   res.json({ message: "Marked as unsold" });
 });
 
-export const remitTicketSalesController = asyncHandler(async (req, res, next) => {
+export const payTicketSalesController = asyncHandler(async (req, res, next) => {
   const { sold, lost, discounted, discountPercentage, scheduleId, distributorId, actionBy, remarks } = req.body;
 
   if ((!sold || !lost || !scheduleId || !distributorId, !actionBy)) {
     throw new AppError("Missing Post Fields", HttpStatusCodes.BadRequest);
   }
 
-  await remitTicketSales({ sold, lost, discounted, discountPercentage, scheduleId, distributorId, actionBy, remarks });
+  await payTicketSales({ sold, lost, discounted, discountPercentage, scheduleId, distributorId, actionBy, remarks });
   res.json({ message: "Remitted" });
 });
 
-export const unRemitTicketSalesController = asyncHandler(async (req, res, next) => {
+export const unPayTicketSalesController = asyncHandler(async (req, res, next) => {
   const { remittedTickets, scheduleId, distributorId, actionBy, remarks } = req.body;
 
   if (!remittedTickets || !scheduleId || !distributorId || !actionBy) {
     throw new AppError("Missing Post Fields", HttpStatusCodes.BadRequest);
   }
 
-  await unremitTicketSales({ remittedTickets, scheduleId, distributorId, actionBy, remarks });
+  await unPayTicketSales({ remittedTickets, scheduleId, distributorId, actionBy, remarks });
   res.json({ message: "Unremitted" });
 });
 
@@ -517,5 +523,12 @@ export const getShowsWithAvailbleTicketTransferController = asyncHandler(async (
   const { departmentId, scheduleId } = req.query;
 
   const result = await getShowsWithAvailbleTicketTransfer({ departmentId, scheduleId });
+  res.json(result);
+});
+
+export const checkScheduleToBeClosedController = asyncHandler(async (req, res) => {
+  const { scheduleId } = req.params;
+
+  const result = await checkScheduleToBeClosed(scheduleId);
   res.json(result);
 });

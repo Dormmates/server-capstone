@@ -338,9 +338,9 @@ export const generateSalesReport = async (showId, scheduleIds) => {
       const ticketPrice = toNumber(t.ticketPrice);
       const discountPct = t.discountPercentage ? toNumber(t.discountPercentage) : 0;
       const discountAmount = (ticketPrice * discountPct) / 100;
-      const isSold = ["sold", "remitted", "lost"].includes(t.status);
+      const isSold = ["sold", "remitted", "lost", "paidToCCA"].includes(t.status);
       const netPrice = isSold ? ticketPrice : 0;
-      const commissionAmount = isSold && commissionFeePct ? (commissionFeePct * netPrice) / 100 : 0;
+      const commissionAmount = commissionFeePct;
 
       const seat = t.seats[0];
       const section = schedule.seatingType === "controlledSeating" ? seat.seatSection : "General";

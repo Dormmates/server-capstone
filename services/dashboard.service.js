@@ -309,7 +309,7 @@ export const getTopDistributors = async ({ departmentId, dateRange = null }) => 
 
   const tickets = await prisma.ticket.findMany({
     where: {
-      status: { in: ["remitted", "sold", "lost"] },
+      status: { in: ["remitted", "lost", "paidToCCA"] },
       ...(departmentId && {
         schedule: {
           show: {

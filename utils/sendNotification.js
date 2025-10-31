@@ -199,11 +199,11 @@ export const sendTicketNotificationsToDistributor = async ({ actionBy, distribut
           case DistributorTicketNotification.ALLOCATE:
             return `${allocatedBy.firstName} ${allocatedBy.lastName} allocated ${totalTickets} tickets on show "${schedule.show.title}"`;
           case DistributorTicketNotification.REMIT:
-            return `Tickets successfully remitted on show "${schedule.show.title}" to ${allocatedBy.firstName} ${allocatedBy.lastName}`;
+            return `Tickets successfully paid on show "${schedule.show.title}" to ${allocatedBy.firstName} ${allocatedBy.lastName}`;
           case DistributorTicketNotification.UNALLOCATE:
             return `${allocatedBy.firstName} ${allocatedBy.lastName} unallocated ${totalTickets} tickets from you on show "${schedule.show.title}"`;
           case DistributorTicketNotification.UNREMIT:
-            return `Tickets successfully unremitted on show "${schedule.show.title}" by ${allocatedBy.firstName} ${allocatedBy.lastName}`;
+            return `Tickets successfully unpaid on show "${schedule.show.title}" by ${allocatedBy.firstName} ${allocatedBy.lastName}`;
           default:
             return "Ticket activity notification.";
         }
@@ -215,14 +215,14 @@ export const sendTicketNotificationsToDistributor = async ({ actionBy, distribut
             return `${allocatedBy.firstName} ${allocatedBy.lastName} allocated ${totalTickets} tickets to you for the show "${schedule.show.title}" scheduled on ${formattedDate}.`;
 
           case DistributorTicketNotification.REMIT:
-            return `You have successfully remitted ${totalTickets} tickets for the show "${schedule.show.title}" to ${allocatedBy.firstName} ${allocatedBy.lastName}.
+            return `You have successfully paid ${totalTickets} tickets for the show "${schedule.show.title}" to ${allocatedBy.firstName} ${allocatedBy.lastName}.
             `;
 
           case DistributorTicketNotification.UNALLOCATE:
             return `${allocatedBy.firstName} ${allocatedBy.lastName} has unallocated ${totalTickets} tickets from you for the show "${schedule.show.title}".`;
 
           case DistributorTicketNotification.UNREMIT:
-            return `The remittance for ${totalTickets} tickets on show "${schedule.show.title}" has been reverted by ${allocatedBy.firstName} ${allocatedBy.lastName}.`;
+            return `The payment for ${totalTickets} tickets on show "${schedule.show.title}" has been reverted by ${allocatedBy.firstName} ${allocatedBy.lastName}.`;
 
           default:
             return "Ticket activity notification.";

@@ -3,14 +3,15 @@ import {
   addShowScheduleController,
   allocateTicketController,
   allocateTicketsToMultipleDistributorsController,
+  checkScheduleToBeClosedController,
   closeScheduleController,
   copyScheduleController,
   deleteScheduleController,
   generateTicketInformationsController,
   getAllDistributorAllocationHistoryController,
-  getAllDistributorRemittanceHistoryController,
+  getAllDistributorPaymentHistoryController,
   getDistributorAllocationHistoryController,
-  getDistributorRemittanceHistoryController,
+  getDistributorPaymentHistoryController,
   getDistributorsForTicketAllocationController,
   getDistributorTicketActivitiesController,
   getDistributorTicketsSummaryController,
@@ -27,13 +28,13 @@ import {
   markTicketAsSoldController,
   markTicketAsUnSoldController,
   openScheduleController,
+  payTicketSalesController,
   refundTicketController,
-  remitTicketSalesController,
   rescheduleController,
   trainerSellTicketController,
   transferTicketController,
   unAllocateTicketController,
-  unRemitTicketSalesController,
+  unPayTicketSalesController,
   updateTallyDataController,
 } from "../controller/schedule.controller.js";
 import { requireRole, verifyAuth } from "../middleware/auth.middleware.js";
@@ -61,13 +62,14 @@ router.get("/seatmap/:scheduleId", getScheduleSeatMapController);
 router.get("/ticket/logs/:scheduleId/:controlNumber", getTicketLogsController);
 router.get("/ticket/informations/:scheduleId/", generateTicketInformationsController);
 router.get("/ticket/availability", verifyAuth, requireRole("head", "trainer"), getShowsWithAvailbleTicketTransferController);
+router.get("/close/availability/:scheduleId", verifyAuth, checkScheduleToBeClosedController);
 
 //Schedule History or Log Operations
 router.get("/:scheduleId/ticketAllocated/:distributorId", getTicketsAllocatedOfDistributorController);
 router.get("/:scheduleId/allocationHistory/:distributorId", getDistributorAllocationHistoryController);
 router.get("/allocationHistory/:distributorId", getAllDistributorAllocationHistoryController);
-router.get("/:scheduleId/remittanceHistory/:distributorId", getDistributorRemittanceHistoryController);
-router.get("/remittanceHistory/:distributorId", getAllDistributorRemittanceHistoryController);
+router.get("/:scheduleId/paymentHistory/:distributorId", getDistributorPaymentHistoryController);
+router.get("/paymentHistory/:distributorId", getAllDistributorPaymentHistoryController);
 router.get("/:scheduleId/ticketSummary/:distributorId", getDistributorTicketsSummaryController);
 router.get("/tallyData/:scheduleId", verifyAuth, requireRole("head", "trainer"), getTallyDataController);
 router.get("/logs/distributorActivites/:scheduleId", verifyAuth, getDistributorTicketActivitiesController);
@@ -77,8 +79,8 @@ router.post("/allocate/controlNumber", verifyAuth, requireRole("head", "trainer"
 router.post("/allocate/multiple", verifyAuth, requireRole("head", "trainer"), allocateTicketsToMultipleDistributorsController);
 router.post("/unallocate/controlNumber", verifyAuth, requireRole("head", "trainer"), unAllocateTicketController);
 router.post("/tallyData", verifyAuth, requireRole("head", "trainer"), updateTallyDataController);
-router.post("/remit", verifyAuth, requireRole("head", "trainer"), remitTicketSalesController);
-router.post("/unremit", verifyAuth, requireRole("head", "trainer"), unRemitTicketSalesController);
+router.post("/pay", verifyAuth, requireRole("head", "trainer"), payTicketSalesController);
+router.post("/unpay", verifyAuth, requireRole("head", "trainer"), unPayTicketSalesController);
 router.post("/refund", verifyAuth, requireRole("head", "trainer"), refundTicketController);
 router.post("/transfer", verifyAuth, requireRole("head", "trainer"), transferTicketController);
 router.post("/sell/ticket", verifyAuth, requireRole("head", "trainer"), trainerSellTicketController);
