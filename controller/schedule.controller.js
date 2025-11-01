@@ -11,6 +11,7 @@ import {
   addShowSchedule,
   addTallyData,
   allocateTicket,
+  allocateTicketsToDistributorsService,
   checkScheduleToBeClosed,
   closeSchedule,
   copySchedule,
@@ -28,7 +29,6 @@ import {
   getShowsWithAvailbleTicketTransfer,
   getTallyData,
   getTicketLogs,
-  getUnallocatedTickets,
   openSchedule,
   payTicketSales,
   refundTicket,
@@ -265,66 +265,9 @@ export const allocateTicketController = asyncHandler(async (req, res, next) => {
 export const allocateTicketsToMultipleDistributorsController = asyncHandler(async (req, res) => {
   const { scheduleId, allocatedBy, allocations } = req.body;
 
-  if (!scheduleId || !allocatedBy || !allocations || allocations.length === 0) {
-    throw new AppError("Missing required fields", HttpStatusCodes.BadRequest);
-  }
+  const results = await allocateTicketsToDistributorsService({ scheduleId, allocatedBy, allocations });
 
-  const unallocatedTickets = await getUnallocatedTickets(scheduleId);
-
-  const totalAvailable = unallocatedTickets.length;
-  const totalRequested = allocations.reduce((sum, a) => sum + a.ticketCount, 0);
-
-  if (totalRequested > totalAvailable) {
-    throw new AppError(`Not enough tickets. Requested ${totalRequested}, but only ${totalAvailable} available.`, HttpStatusCodes.Conflict);
-  }
-
-  let currentIndex = 0;
-  const results = [];
-
-  for (const { distributorId, ticketCount, name } of allocations) {
-    const controlNumbers = unallocatedTickets.slice(currentIndex, currentIndex + ticketCount).map((t) => t);
-
-    if (controlNumbers.length === 0) {
-      results.push({
-        distributorId,
-        name,
-        allocatedCount: 0,
-        success: false,
-        message: "No available tickets to allocate",
-      });
-      continue;
-    }
-
-    try {
-      const result = await allocateTicket({
-        scheduleId,
-        distributorId,
-        allocatedBy,
-        controlNumbers,
-      });
-
-      currentIndex += ticketCount;
-      results.push({
-        distributorId,
-        name,
-        allocatedCount: controlNumbers.length,
-        success: true,
-      });
-    } catch (error) {
-      results.push({
-        distributorId,
-        name,
-        allocatedCount: 0,
-        success: false,
-      });
-    }
-  }
-
-  res.status(200).json({
-    success: true,
-    message: "Ticket allocation process completed",
-    results,
-  });
+  res.status(200).json({ success: true, message: "Allocation completed", results });
 });
 
 export const unAllocateTicketController = asyncHandler(async (req, res, next) => {

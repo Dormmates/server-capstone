@@ -277,6 +277,7 @@ export const generateScheduleTicketsAndSeats = async ({
       seat = seats.find((s) => s.ticketControlNumber === num);
       if (!seat) throw new AppError(`No matching seat for control number ${num}`);
       if (!isFixedPrice && !complimentaryTicket) price = seat.ticketPrice;
+      complimentaryTicket = seat.isComplimentary;
     }
 
     const ticketId = crypto.randomUUID();
@@ -625,12 +626,12 @@ export const generateTicketInformations = async (scheduleId) => {
 
 export const getUnallocatedTickets = async (scheduleId) => {
   const unallocatedTickets = await prisma.ticket.findMany({
-    where: { scheduleId, status: "not_allocated" },
+    where: { scheduleId, status: "not_allocated", isComplimentary: false },
     orderBy: { controlNumber: "asc" },
-    select: { controlNumber: true },
+    select: { controlNumber: true, ticketId: true },
   });
 
-  return unallocatedTickets.map((t) => t.controlNumber);
+  return unallocatedTickets;
 };
 
 export const getDistributorsForTicketAllocation = async ({ departmentId, scheduleId }) => {
@@ -807,6 +808,66 @@ export const getScheduleSeatMap = async (scheduleId) => {
   }));
 
   return formattedSeats;
+};
+
+export const allocateTicketsToDistributorsService = async ({ scheduleId, allocatedBy, allocations }) => {
+  return await prisma.$transaction(async (tx) => {
+    const unallocatedTickets = await getUnallocatedTickets(scheduleId);
+
+    const totalAvailable = unallocatedTickets.length;
+    const totalRequested = allocations.reduce((sum, a) => sum + a.ticketCount, 0);
+
+    if (totalRequested > totalAvailable) {
+      throw new AppError(`Not enough tickets. Requested ${totalRequested}, but only ${totalAvailable} available.`);
+    }
+
+    let currentIndex = 0;
+    const results = [];
+
+    for (const { distributorId, ticketCount, name } of allocations) {
+      const ticketsToAllocate = unallocatedTickets.slice(currentIndex, currentIndex + ticketCount);
+
+      if (!ticketsToAllocate.length) {
+        results.push({ distributorId, name, allocatedCount: 0, success: false, message: "No tickets available" });
+        continue;
+      }
+
+      await tx.ticket.updateMany({
+        where: { ticketId: { in: ticketsToAllocate.map((t) => t.ticketId) } },
+        data: { status: "allocated", distributorId },
+      });
+
+      await tx.showSeat.updateMany({
+        where: { scheduleId, ticketId: { in: ticketsToAllocate.map((t) => t.ticketId) } },
+        data: { status: "reserved" },
+      });
+
+      await tx.ticketActionLog.create({
+        data: {
+          actionLogId: crypto.randomUUID(),
+          scheduleId,
+          distributorId,
+          actionBy: allocatedBy,
+          actionDate: new Date(),
+          actionType: "allocate",
+          logs: { create: ticketsToAllocate.map((t) => ({ ticketId: t.ticketId })) },
+        },
+      });
+
+      currentIndex += ticketCount;
+      results.push({ distributorId, name, allocatedCount: ticketsToAllocate.length, success: true });
+
+      sendTicketNotificationsToDistributor({
+        actionBy: allocatedBy,
+        distributorId,
+        scheduleId,
+        totalTickets: ticketsToAllocate.length,
+        action: DistributorTicketNotification.ALLOCATE,
+      });
+    }
+
+    return results;
+  });
 };
 
 export const allocateTicket = async ({ scheduleId, distributorId, allocatedBy, controlNumbers }) => {
@@ -1698,8 +1759,8 @@ export const transferTicket = async ({ remarks, trainerId, scheduleId, controlNu
     throw new AppError("Cannot transfer a complimentary ticket");
   }
 
-  if (ticket.status !== "remitted") {
-    throw new AppError("Only remitted tickets can be transferred");
+  if (ticket.status !== "paidToCCA") {
+    throw new AppError("Only ticket payment whose payment are still at CCA can be transferred");
   }
 
   if (newTicket.isComplimentary) {
@@ -1737,7 +1798,7 @@ export const transferTicket = async ({ remarks, trainerId, scheduleId, controlNu
     await tx.ticket.update({
       where: { ticketId: newTicket.ticketId },
       data: {
-        status: "remitted",
+        status: "paidToCCA",
         distributorId: ticket.distributorId ?? null,
         customerEmail: ticket.customerEmail,
         customerName: ticket.customerName,
@@ -1762,7 +1823,7 @@ export const transferTicket = async ({ remarks, trainerId, scheduleId, controlNu
       if (newSeat) {
         await tx.showSeat.update({
           where: { scheduleId_seatNumber: { scheduleId: newScheduleId, seatNumber: newSeat.seatNumber } },
-          data: { status: "sold", ticketId: newTicket.ticketId },
+          data: { status: "paidToCCA", ticketId: newTicket.ticketId },
         });
       }
     }
@@ -1774,7 +1835,7 @@ export const transferTicket = async ({ remarks, trainerId, scheduleId, controlNu
         actionBy: trainerId,
         distributorId: ticket.distributorId ?? null,
         scheduleId,
-        actionType: "unremit",
+        actionType: "unPayToCCA",
         remarks,
         logs: { create: { ticketId: ticket.ticketId } },
       },
@@ -1813,7 +1874,7 @@ export const transferTicket = async ({ remarks, trainerId, scheduleId, controlNu
         actionBy: trainerId,
         distributorId: ticket.distributorId ?? null,
         scheduleId: newScheduleId,
-        actionType: "remit",
+        actionType: "payToCCA",
         remarks,
         logs: { create: { ticketId: newTicket.ticketId } },
       },

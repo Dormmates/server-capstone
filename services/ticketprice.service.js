@@ -27,30 +27,13 @@ export const newSectionedPricing = async ({ name, sectionedPricing, commissionFe
   });
 };
 
-export const updatSectionedPricing = async ({ priceId, name, sectionedPricing, commissionFee }) => {
+export const updatePricingName = async ({ priceId, newName }) => {
   return await prisma.ticketPricing.update({
     where: {
       id: priceId,
-      type: "sectioned",
     },
     data: {
-      priceName: name,
-      sectionPrices: sectionedPricing,
-      commisionFee: Number(commissionFee),
-    },
-  });
-};
-
-export const updatFixedPricing = async ({ priceId, name, fixedPrice, commissionFee }) => {
-  return await prisma.ticketPricing.update({
-    where: {
-      id: priceId,
-      type: "fixed",
-    },
-    data: {
-      priceName: name,
-      fixedPrice,
-      commisionFee: Number(commissionFee),
+      priceName: newName,
     },
   });
 };
