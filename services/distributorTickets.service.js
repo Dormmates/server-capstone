@@ -33,6 +33,9 @@ export const getDistributorAllocatedTickets = async ({ distributorId, scheduleId
     orderBy: { controlNumber: "asc" },
   });
 
+  const lastName = allocatedTickets[0]?.logs[0]?.action?.distributor?.lastName;
+  const firstName = allocatedTickets[0]?.logs[0]?.action?.distributor?.firstName;
+
   return allocatedTickets.map((ticket) => {
     const allocationLog = ticket.logs.find((lt) => lt.action.actionType === "allocate");
 
@@ -47,9 +50,7 @@ export const getDistributorAllocatedTickets = async ({ distributorId, scheduleId
       dateAllocated: allocationLog?.action.actionDate ?? null,
       allocatedBy: allocationLog?.action.actionBy ?? null,
       isPaid: ["lost", "paidToCCA", "remitted"].includes(ticket.status),
-      distributor: allocationLog?.action.distributor
-        ? `${allocationLog.action.distributor.firstName} ${allocationLog.action.distributor.lastName}`
-        : null,
+      distributor: firstName + " " + lastName ?? null,
     };
   });
 };
