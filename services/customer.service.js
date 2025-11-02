@@ -154,3 +154,13 @@ export const getShowWithSchedule = async (showId) => {
     pastSchedules,
   };
 };
+
+export const getAvailableTickets = async (scheduleId) => {
+  return await prisma.ticket.count({
+    where: {
+      scheduleId,
+      status: { in: ["allocated", "not_allocated"] },
+      isComplimentary: false,
+    },
+  });
+};
