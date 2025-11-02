@@ -811,63 +811,68 @@ export const getScheduleSeatMap = async (scheduleId) => {
 };
 
 export const allocateTicketsToDistributorsService = async ({ scheduleId, allocatedBy, allocations }) => {
-  return await prisma.$transaction(async (tx) => {
-    const unallocatedTickets = await getUnallocatedTickets(scheduleId);
+  return await prisma.$transaction(
+    async (tx) => {
+      const unallocatedTickets = await getUnallocatedTickets(scheduleId);
 
-    const totalAvailable = unallocatedTickets.length;
-    const totalRequested = allocations.reduce((sum, a) => sum + a.ticketCount, 0);
+      const totalAvailable = unallocatedTickets.length;
+      const totalRequested = allocations.reduce((sum, a) => sum + a.ticketCount, 0);
 
-    if (totalRequested > totalAvailable) {
-      throw new AppError(`Not enough tickets. Requested ${totalRequested}, but only ${totalAvailable} available.`);
-    }
-
-    let currentIndex = 0;
-    const results = [];
-
-    for (const { distributorId, ticketCount, name } of allocations) {
-      const ticketsToAllocate = unallocatedTickets.slice(currentIndex, currentIndex + ticketCount);
-
-      if (!ticketsToAllocate.length) {
-        results.push({ distributorId, name, allocatedCount: 0, success: false, message: "No tickets available" });
-        continue;
+      if (totalRequested > totalAvailable) {
+        throw new AppError(`Not enough tickets. Requested ${totalRequested}, but only ${totalAvailable} available.`);
       }
 
-      await tx.ticket.updateMany({
-        where: { ticketId: { in: ticketsToAllocate.map((t) => t.ticketId) } },
-        data: { status: "allocated", distributorId },
-      });
+      let currentIndex = 0;
+      const results = [];
 
-      await tx.showSeat.updateMany({
-        where: { scheduleId, ticketId: { in: ticketsToAllocate.map((t) => t.ticketId) } },
-        data: { status: "reserved" },
-      });
+      for (const { distributorId, ticketCount, name } of allocations) {
+        const ticketsToAllocate = unallocatedTickets.slice(currentIndex, currentIndex + ticketCount);
 
-      await tx.ticketActionLog.create({
-        data: {
-          actionLogId: crypto.randomUUID(),
-          scheduleId,
-          distributorId,
+        if (!ticketsToAllocate.length) {
+          results.push({ distributorId, name, allocatedCount: 0, success: false, message: "No tickets available" });
+          continue;
+        }
+
+        await tx.ticket.updateMany({
+          where: { ticketId: { in: ticketsToAllocate.map((t) => t.ticketId) } },
+          data: { status: "allocated", distributorId },
+        });
+
+        await tx.showSeat.updateMany({
+          where: { scheduleId, ticketId: { in: ticketsToAllocate.map((t) => t.ticketId) } },
+          data: { status: "reserved" },
+        });
+
+        await tx.ticketActionLog.create({
+          data: {
+            actionLogId: crypto.randomUUID(),
+            scheduleId,
+            distributorId,
+            actionBy: allocatedBy,
+            actionDate: new Date(),
+            actionType: "allocate",
+            logs: { create: ticketsToAllocate.map((t) => ({ ticketId: t.ticketId })) },
+          },
+        });
+
+        currentIndex += ticketCount;
+        results.push({ distributorId, name, allocatedCount: ticketsToAllocate.length, success: true });
+
+        sendTicketNotificationsToDistributor({
           actionBy: allocatedBy,
-          actionDate: new Date(),
-          actionType: "allocate",
-          logs: { create: ticketsToAllocate.map((t) => ({ ticketId: t.ticketId })) },
-        },
-      });
+          distributorId,
+          scheduleId,
+          totalTickets: ticketsToAllocate.length,
+          action: DistributorTicketNotification.ALLOCATE,
+        });
+      }
 
-      currentIndex += ticketCount;
-      results.push({ distributorId, name, allocatedCount: ticketsToAllocate.length, success: true });
-
-      sendTicketNotificationsToDistributor({
-        actionBy: allocatedBy,
-        distributorId,
-        scheduleId,
-        totalTickets: ticketsToAllocate.length,
-        action: DistributorTicketNotification.ALLOCATE,
-      });
+      return results;
+    },
+    {
+      timeout: 60000,
     }
-
-    return results;
-  });
+  );
 };
 
 export const allocateTicket = async ({ scheduleId, distributorId, allocatedBy, controlNumbers }) => {
