@@ -277,7 +277,7 @@ export const generateScheduleTicketsAndSeats = async ({
       seat = seats.find((s) => s.ticketControlNumber === num);
       if (!seat) throw new AppError(`No matching seat for control number ${num}`);
       if (!isFixedPrice && !complimentaryTicket) price = seat.ticketPrice;
-      complimentaryTicket = seat.isComplimentary;
+      // complimentaryTicket = seat.isComplimentary;
     }
 
     const ticketId = crypto.randomUUID();
