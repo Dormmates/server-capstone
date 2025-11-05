@@ -58,10 +58,10 @@ export const getUpcomingShows = async () => {
 export const getDepartmentShows = async ({ departmentId = null }) => {
   const now = new Date();
 
-  const baseWhere = departmentId ? { departmentId } : {};
-
   const shows = await prisma.show.findMany({
-    where: baseWhere,
+    where: {
+      ...(departmentId && { departmentId }),
+    },
     include: {
       schedules: {
         orderBy: { datetime: "asc" },
@@ -78,7 +78,7 @@ export const getDepartmentShows = async ({ departmentId = null }) => {
   });
 
   const transformedShows = shows.map(({ schedules, genres, ...rest }) => {
-    const upcomingSchedules = schedules.filter((s) => s.datetime >= now);
+    const upcomingSchedules = schedules.filter((s) => s.datetime >= now && s.isOpen == true);
     const pastSchedules = schedules.filter((s) => s.datetime < now);
 
     const nextSchedule = upcomingSchedules.length > 0 ? upcomingSchedules[0] : null;
@@ -139,7 +139,7 @@ export const getShowWithSchedule = async (showId) => {
 
   const { schedules, genres, ...rest } = show;
 
-  const upcomingSchedules = schedules.filter((s) => s.datetime >= now);
+  const upcomingSchedules = schedules.filter((s) => s.datetime >= now && s.isOpen === true);
   const pastSchedules = schedules.filter((s) => s.datetime < now);
 
   const nextSchedule = upcomingSchedules.length > 0 ? upcomingSchedules[0] : null;
