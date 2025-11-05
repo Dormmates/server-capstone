@@ -463,9 +463,9 @@ export const refundTicketController = asyncHandler(async (req, res) => {
 });
 
 export const getShowsWithAvailbleTicketTransferController = asyncHandler(async (req, res) => {
-  const { departmentId, scheduleId } = req.query;
+  const { departmentId, scheduleId, showId } = req.query;
 
-  const result = await getShowsWithAvailbleTicketTransfer({ departmentId, scheduleId });
+  const result = await getShowsWithAvailbleTicketTransfer({ showId, departmentId, scheduleId });
   res.json(result);
 });
 

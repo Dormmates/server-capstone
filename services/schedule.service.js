@@ -1649,10 +1649,11 @@ export const refundTicket = async (scheduleId, controlNumber, trainerId, distrib
   });
 };
 
-export const getShowsWithAvailbleTicketTransfer = async ({ departmentId, scheduleId }) => {
+export const getShowsWithAvailbleTicketTransfer = async ({ showId, departmentId, scheduleId }) => {
   const shows = await prisma.show.findMany({
     where: {
       ...(departmentId && { departmentId }),
+      ...(showId && { showId }),
       schedules: {
         some: {
           scheduleId: {
