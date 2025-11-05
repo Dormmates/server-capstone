@@ -98,7 +98,7 @@ export const getTopShowsByTotalRevenue = async ({ departmentId, dateRange = null
   const tickets = await prisma.ticket.findMany({
     where: {
       status: {
-        in: ["remitted", "sold", "lost"],
+        in: ["remitted", "sold", "lost", "paidToCCA"],
       },
 
       ...(start &&
