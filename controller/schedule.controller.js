@@ -63,12 +63,10 @@ export const addShowScheduleController = asyncHandler(async (req, res) => {
     case "ticketed": {
       const { ticketPricing, contactNumber, facebookLink, controlNumbers, seatPricing, seats } = req.body;
 
-      const formattedDates = convertDates(dates);
-
       await prisma.$transaction(
         async (tx) => {
           const createdSchedules = await addShowSchedule({
-            dates: formattedDates,
+            dates,
             showId,
             seatingType: seatingConfiguration,
             ticketType,

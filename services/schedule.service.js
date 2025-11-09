@@ -30,13 +30,10 @@ export const addShowSchedule = async ({
   }
 
   const schedules = dates.map(({ datetime }) => {
-    const datePH = dayjs.tz(datetime, "Asia/Manila");
-    const dateUTC = datePH.utc();
-
     return {
       scheduleId: crypto.randomUUID(),
       showId,
-      datetime: dateUTC.toDate(),
+      datetime,
       ticketPricingId: ticketPricing ? ticketPricing.id : null,
       seatingType,
       ticketType,
