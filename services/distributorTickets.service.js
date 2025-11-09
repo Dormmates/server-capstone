@@ -196,7 +196,7 @@ export const getDistributorShowsAndTicketsAllocated = async ({ distributorId }) 
           ticketPricing: { select: { commissionFee: true } },
           scheduleId: true,
           seatingType: true,
-          show: { select: { showCover: true, showId: true, title: true } },
+          show: { select: { showCover: true, showId: true, title: true, showType: true } },
         },
       },
     },
