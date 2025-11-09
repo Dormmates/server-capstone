@@ -16,7 +16,7 @@ export const getTopShowsByTicketSold = async ({ departmentId = null, dateRange =
     by: ["scheduleId"],
     where: {
       status: {
-        in: ["remitted", "sold", "lost"],
+        in: ["remitted", "sold", "lost", "paidToCCA"],
       },
       ...(departmentId && {
         schedule: {
@@ -186,7 +186,7 @@ export const getTopShowsByGenre = async ({ departmentId, dateRange = null }) => 
   const tickets = await prisma.ticket.findMany({
     where: {
       status: {
-        in: ["remitted", "sold", "lost"],
+        in: ["remitted", "sold", "lost", "paidToCCA"],
       },
       ...(departmentId && {
         schedule: {
@@ -309,7 +309,7 @@ export const getTopDistributors = async ({ departmentId, dateRange = null }) => 
 
   const tickets = await prisma.ticket.findMany({
     where: {
-      status: { in: ["remitted", "lost", "paidToCCA"] },
+      status: { in: ["remitted", "paidToCCA"] },
       ...(departmentId && {
         schedule: {
           show: {
