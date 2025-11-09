@@ -29,16 +29,21 @@ export const addShowSchedule = async ({
     throw new AppError(`Cannot add schedules in the past (PH time): ${invalidDates.join(", ")}`, HttpStatusCodes.BadRequest);
   }
 
-  const schedules = dates.map(({ datetime }) => ({
-    scheduleId: crypto.randomUUID(),
-    showId,
-    datetime,
-    ticketPricingId: ticketPricing ? ticketPricing.id : null,
-    seatingType,
-    ticketType,
-    contactNumber,
-    facebookLink,
-  }));
+  const schedules = dates.map(({ datetime }) => {
+    const datePH = dayjs.tz(datetime, "Asia/Manila");
+    const dateUTC = datePH.utc();
+
+    return {
+      scheduleId: crypto.randomUUID(),
+      showId,
+      datetime: dateUTC.toDate(),
+      ticketPricingId: ticketPricing ? ticketPricing.id : null,
+      seatingType,
+      ticketType,
+      contactNumber,
+      facebookLink,
+    };
+  });
 
   const conflicts = await tx.showSchedule.findMany({
     where: {
