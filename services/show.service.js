@@ -96,21 +96,6 @@ export const updateShow = async ({ showId, showTitle, coverImage, description, d
         },
       });
     }
-
-    const updatedShow = await tx.show.findUnique({
-      where: { showId },
-      include: {
-        department: true,
-        genres: {
-          include: {
-            genreFk: true,
-          },
-        },
-        schedules: true,
-      },
-    });
-
-    return updatedShow;
   });
 };
 

@@ -12,12 +12,11 @@ import {
   unArchiveShow,
   updateShow,
 } from "../services/show.service.js";
+import { storage } from "../utils/appwriteconfig.js";
 import { sendShowNotification, ShowNotificationAction } from "../utils/sendNotification.js";
 
 export const createShowController = asyncHandler(async (req, res, next) => {
-  const { showTitle, description, department, genre, createdBy, showType } = req.body;
-
-  const { imageUrl } = req;
+  const { showTitle, description, department, genre, createdBy, showType, imageUrl } = req.body;
 
   if (!showTitle || !description || !genre || !createdBy || !showType) {
     throw new AppError("Missing Post Fields", HttpStatusCodes.BadRequest);
@@ -47,9 +46,7 @@ export const createShowController = asyncHandler(async (req, res, next) => {
 });
 
 export const updateShowController = asyncHandler(async (req, res, next) => {
-  const { showId, showTitle, description, department, genre, showType } = req.body;
-
-  const { imageUrl } = req;
+  const { showId, showTitle, description, department, genre, showType, imageUrl, oldFileId } = req.body;
 
   if (!showTitle || !description || !genre || !showType) {
     throw new AppError("Missing Post Fields", HttpStatusCodes.BadRequest);
@@ -62,7 +59,7 @@ export const updateShowController = asyncHandler(async (req, res, next) => {
 
   const departmentValue = showType === "majorProduction" ? null : department;
 
-  const updatedShow = await updateShow({
+  await updateShow({
     showId,
     showTitle,
     coverImage: imageUrl,
@@ -72,9 +69,14 @@ export const updateShowController = asyncHandler(async (req, res, next) => {
     showType,
   });
 
-  const genreNames = updatedShow?.genres.map((g) => g.genreFk.name);
+  // Delete old file if provided (fire-and-forget)
+  if (oldFileId) {
+    storage.deleteFile(process.env.APP_WRITE_BUCKET_ID, oldFileId).catch((err) => {
+      console.error(`Failed to delete old file (${oldFileId}):`, err.message);
+    });
+  }
 
-  res.status(HttpStatusCodes.Created).json({ ...updatedShow, genreNames });
+  res.status(HttpStatusCodes.Created).json({ message: "Show Updated" });
 });
 
 export const getShowController = asyncHandler(async (req, res, next) => {

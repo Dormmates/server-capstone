@@ -14,8 +14,7 @@ import { storage } from "../utils/appwriteconfig.js";
 import { getFileId } from "../utils/general.utils.js";
 
 export const createDepartmentController = asyncHandler(async (req, res, next) => {
-  const { name } = req.body;
-  const { imageUrl } = req;
+  const { name, imageUrl } = req.body;
 
   const newDepartment = await createDepartment({ name, logoUrl: imageUrl });
 
@@ -38,21 +37,20 @@ export const getDepartmentListController = asyncHandler(async (req, res, next) =
 
 export const deleteDepartmentController = asyncHandler(async (req, res, next) => {
   const { id } = req.params;
-  const dep = await deleteDepartment(id);
-
-  if (dep) {
-    await storage.deleteFile(process.env.APP_WRITE_BUCKET_ID, getFileId(dep.logoUrl));
-  }
+  await deleteDepartment(id);
 
   res.json({ message: "Deleted" });
 });
 
 export const editDepartmentController = asyncHandler(async (req, res, next) => {
-  const { departmentId, name } = req.body;
-  const { imageUrl } = req;
+  const { departmentId, name, imageUrl, oldFileId } = req.body;
 
   if (!departmentId || !name) {
     throw new AppError("Missing Post Fields", HttpStatusCodes.BadRequest);
+  }
+
+  if (oldFileId) {
+    storage.deleteFile(process.env.APP_WRITE_BUCKET_ID, oldFileId).catch((e) => console.error("File deletion failed:", e));
   }
 
   await updateDepartment({ departmentId, name, logoUrl: imageUrl });
