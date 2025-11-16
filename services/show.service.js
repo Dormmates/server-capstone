@@ -177,12 +177,12 @@ export const archiveShow = async (showId) => {
     //   where: { showId },
     // });
 
-    await tx.showSchedule.updateMany({
-      where: { showId },
-      data: {
-        isOpen: false,
-      },
-    });
+    // await tx.showSchedule.updateMany({
+    //   where: { showId },
+    //   data: {
+    //     isOpen: false,
+    //   },
+    // });
     return show;
   });
 
