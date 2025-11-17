@@ -99,7 +99,7 @@ export const addShowScheduleController = asyncHandler(async (req, res) => {
 
     case "nonTicketed": {
       await addShowSchedule({
-        dates: convertDates(dates),
+        dates,
         showId,
         seatingType: seatingConfiguration,
         ticketType,
