@@ -2,6 +2,22 @@ import { AppError, HttpStatusCodes } from "../middleware/errorHandler.middleware
 import prisma from "../utils/primsa.connection.js";
 
 export const newFixedPricing = async ({ name, fixedPrice, commissionFee }) => {
+  const priceNameExists = await prisma.ticketPricing.findFirst({
+    where: { priceName: name },
+  });
+
+  if (priceNameExists) {
+    throw new AppError(`"${name}" price name already exists`);
+  }
+
+  const priceValueExists = await prisma.ticketPricing.findFirst({
+    where: { fixedPrice: Number(fixedPrice) },
+  });
+
+  if (priceValueExists) {
+    throw new AppError(`Price "${fixedPrice}" already exists`);
+  }
+
   return await prisma.ticketPricing.create({
     data: {
       priceName: name,
@@ -28,6 +44,12 @@ export const newSectionedPricing = async ({ name, sectionedPricing, commissionFe
 };
 
 export const updatePricingName = async ({ priceId, newName }) => {
+  const price = await prisma.ticketPricing.findFirst({ where: { priceName: newName } });
+
+  if (price) {
+    throw new AppError(`"${newName}" price name already exists`);
+  }
+
   return await prisma.ticketPricing.update({
     where: {
       id: priceId,
