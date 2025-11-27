@@ -29,6 +29,7 @@ import {
   getShowsWithAvailbleTicketTransfer,
   getTallyData,
   getTicketLogs,
+  markTicketAsNotLost,
   openSchedule,
   payTicketSales,
   refundTicket,
@@ -472,4 +473,16 @@ export const checkScheduleToBeClosedController = asyncHandler(async (req, res) =
 
   const result = await checkScheduleToBeClosed(scheduleId);
   res.json(result);
+});
+
+export const markTicketAsNotLostController = asyncHandler(async (req, res) => {
+  const { scheduleId, controlNumber } = req.body;
+
+  if (!scheduleId || !controlNumber) {
+    throw new AppError("Missing Query Fields", HttpStatusCodes.BadRequest);
+  }
+
+  await markTicketAsNotLost({ scheduleId, controlNumber });
+
+  res.json({ message: "Marked Ticket as Not Lost" });
 });

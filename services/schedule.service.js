@@ -764,6 +764,7 @@ export const getScheduleSeatMap = async (scheduleId) => {
           controlNumber: true,
           ticketPrice: true,
           isComplimentary: true,
+          status: true,
           distributor: {
             select: {
               firstName: true,
@@ -797,6 +798,7 @@ export const getScheduleSeatMap = async (scheduleId) => {
     section: seat.seatSection,
     rotation: seat.rotation,
     status: seat.status,
+    ticketStatus: seat.ticket?.status ?? "",
     ticketControlNumber: seat.ticket?.controlNumber ?? 0,
     ticketPrice: seat.ticket?.ticketPrice ?? 0,
     isComplimentary: seat.ticket?.isComplimentary ?? false,
@@ -1311,12 +1313,6 @@ export const payTicketSales = async ({
         where: { scheduleId, controlNumber: { in: sold } },
         data: { status: "paidToCCA" },
       });
-
-      // Update seat status to sold
-      await tx.showSeat.updateMany({
-        where: { scheduleId, ticketId: { in: sold.map((cn) => ticketIdMap[cn]) } },
-        data: { status: "paidToCCA" },
-      });
     }
 
     // Lost → lost
@@ -1324,12 +1320,6 @@ export const payTicketSales = async ({
       await tx.ticket.updateMany({
         where: { scheduleId, controlNumber: { in: lost } },
         data: { status: "lost" },
-      });
-
-      // Update seat status to sold
-      await tx.showSeat.updateMany({
-        where: { scheduleId, ticketId: { in: sold.map((cn) => ticketIdMap[cn]) } },
-        data: { status: "paidToCCA" },
       });
     }
 
@@ -1339,13 +1329,12 @@ export const payTicketSales = async ({
         where: { scheduleId, controlNumber: { in: discounted } },
         data: { discountPercentage },
       });
-
-      // Update seat status to sold
-      await tx.showSeat.updateMany({
-        where: { scheduleId, ticketId: { in: sold.map((cn) => ticketIdMap[cn]) } },
-        data: { status: "paidToCCA" },
-      });
     }
+
+    await tx.showSeat.updateMany({
+      where: { scheduleId, ticketId: { in: allControlNumbers.map((cn) => ticketIdMap[cn]) } },
+      data: { status: "paidToCCA" },
+    });
 
     // Create ticket action log
     await tx.ticketActionLog.create({
@@ -2001,4 +1990,29 @@ export const checkScheduleToBeClosed = async (scheduleId) => {
     withBalanceDue,
     unAllocatedTickets: scheduleTickets.filter((t) => t.status === "not_allocated"),
   };
+};
+
+export const markTicketAsNotLost = async ({ scheduleId, controlNumber }) => {
+  const ticket = await prisma.ticket.findFirst({
+    where: {
+      scheduleId,
+      controlNumber,
+    },
+    select: {
+      ticketId: true,
+    },
+  });
+
+  if (!ticket) {
+    throw new AppError("Ticket Not Found");
+  }
+
+  return await prisma.ticket.update({
+    where: {
+      ticketId: ticket.ticketId,
+    },
+    data: {
+      status: "paidToCCA",
+    },
+  });
 };

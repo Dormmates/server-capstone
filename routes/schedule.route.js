@@ -25,6 +25,7 @@ import {
   getTallyDataController,
   getTicketLogsController,
   getTicketsAllocatedOfDistributorController,
+  markTicketAsNotLostController,
   markTicketAsSoldController,
   markTicketAsUnSoldController,
   openScheduleController,
@@ -84,6 +85,7 @@ router.post("/unpay", verifyAuth, requireRole("head", "trainer"), unPayTicketSal
 router.post("/refund", verifyAuth, requireRole("head", "trainer"), refundTicketController);
 router.post("/transfer", verifyAuth, requireRole("head", "trainer"), transferTicketController);
 router.post("/sell/ticket", verifyAuth, requireRole("head", "trainer"), trainerSellTicketController);
+router.post("/markAsNotLost", verifyAuth, requireRole("head", "trainer"), markTicketAsNotLostController);
 
 //Distributor Ticket Operations
 router.post("/markSold", verifyAuth, markTicketAsSoldController);
