@@ -34,7 +34,7 @@ export const addShowSchedule = async ({
       scheduleId: crypto.randomUUID(),
       showId,
       datetime,
-      ticketPricingId: ticketPricing ? ticketPricing.id : null,
+      ticketPricing,
       seatingType,
       ticketType,
       contactNumber,
@@ -192,7 +192,6 @@ export const copySchedule = async ({ scheduleId, newDateTime }) => {
           },
         },
       },
-      ticketPricing: true,
     },
   });
 
@@ -221,7 +220,7 @@ export const copySchedule = async ({ scheduleId, newDateTime }) => {
         seatingType: existingSchedule.seatingType,
         scheduleId: crypto.randomUUID(),
         ticketType: existingSchedule.ticketType,
-        ticketPricingId: existingSchedule.ticketPricingId,
+        ticketPricing: existingSchedule.ticketPricing,
       },
     });
 
@@ -329,9 +328,6 @@ export const getShowSchedules = async ({ showId, excludeClosed = false, excludeR
       showId,
       ...(excludeClosed && { isOpen: true }),
     },
-    include: {
-      ticketPricing: true,
-    },
     orderBy: { datetime: "asc" },
   });
 
@@ -341,9 +337,6 @@ export const getShowSchedules = async ({ showId, excludeClosed = false, excludeR
 export const getScheduleDetails = async (scheduleId) => {
   const schedule = await prisma.showSchedule.findUnique({
     where: { scheduleId },
-    include: {
-      ticketPricing: true,
-    },
   });
 
   return schedule;
@@ -352,7 +345,6 @@ export const getScheduleDetails = async (scheduleId) => {
 export const getScheduleSummary = async (scheduleId) => {
   const schedule = await prisma.showSchedule.findUnique({
     where: { scheduleId },
-    include: { ticketPricing: true },
   });
 
   if (!schedule) throw new AppError("Schedule Not Found");
@@ -1253,7 +1245,6 @@ export const payTicketSales = async ({
 }) => {
   const schedule = await prisma.showSchedule.findUnique({
     where: { scheduleId },
-    include: { ticketPricing: true },
   });
 
   if (!schedule) {
@@ -1677,7 +1668,6 @@ export const getShowsWithAvailbleTicketTransfer = async ({ showId, departmentId,
           },
         },
         include: {
-          ticketPricing: true,
           tickets: {
             where: {
               status: "not_allocated",
@@ -1885,11 +1875,7 @@ export const checkScheduleToBeClosed = async (scheduleId) => {
   const schedule = await prisma.showSchedule.findUnique({
     where: { scheduleId },
     select: {
-      ticketPricing: {
-        select: {
-          commissionFee: true,
-        },
-      },
+      ticketPricing: true,
     },
   });
 
@@ -1938,7 +1924,7 @@ export const checkScheduleToBeClosed = async (scheduleId) => {
     const distributorId = ticket.distributor?.userId || null;
 
     if (!distributorId) continue;
-    const isPaid = (ticket.status === "paidToCCA") | (ticket.status === "remitted");
+    const isPaid = ticket.status === "paidToCCA" || ticket.status === "remitted" || ticket.status === "lost";
     const isSold = ticket.status === "sold";
     const commissionFee = Number(schedule?.ticketPricing?.commissionFee || 0);
     const ticketPrice = (Number(ticket.ticketPrice) || 0) - commissionFee;

@@ -60,9 +60,17 @@ export const getShowSchedulesController = asyncHandler(async (req, res) => {
 export const addShowScheduleController = asyncHandler(async (req, res) => {
   const { ticketType, showId, dates, seatingConfiguration } = req.body;
 
+  if (!ticketType || !showId || !dates || !seatingConfiguration) {
+    throw new AppError("Missing Post Fields");
+  }
+
   switch (ticketType) {
     case "ticketed": {
       const { ticketPricing, contactNumber, facebookLink, controlNumbers, seatPricing, seats } = req.body;
+
+      if (!ticketPricing) {
+        throw new AppError("Missing Post Fields");
+      }
 
       await prisma.$transaction(
         async (tx) => {

@@ -65,9 +65,6 @@ export const getDepartmentShows = async ({ departmentId = null }) => {
     include: {
       schedules: {
         orderBy: { datetime: "asc" },
-        include: {
-          ticketPricing: true,
-        },
       },
       genres: {
         include: {
@@ -123,9 +120,6 @@ export const getShowWithSchedule = async (showId) => {
     include: {
       schedules: {
         orderBy: { datetime: "asc" },
-        include: {
-          ticketPricing: true,
-        },
       },
       genres: {
         include: {

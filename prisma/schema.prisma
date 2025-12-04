@@ -19,9 +19,8 @@ model Department {
 model DepartmentTrainer {
   departmentId String
   userId       String
-
-  department Department @relation(fields: [departmentId], references: [departmentId])
-  user       User       @relation(fields: [userId], references: [userId])
+  department   Department @relation(fields: [departmentId], references: [departmentId])
+  user         User       @relation(fields: [userId], references: [userId])
 
   @@id([departmentId, userId])
   @@index([userId])
@@ -29,15 +28,14 @@ model DepartmentTrainer {
 }
 
 model Distributor {
-  userId          String           @unique(map: "userId_UNIQUE") @db.VarChar(36)
+  userId          String           @id @unique(map: "userId_UNIQUE") @db.VarChar(36)
   departmentId    String?          @db.VarChar(36)
   contactNumber   String           @db.VarChar(20)
-  user            User             @relation(fields: [userId], references: [userId], onDelete: Cascade, map: "distributor_ibfk_1")
   distributorType DistributorTypes
   hasCommission   Boolean          @default(true)
+  user            User             @relation(fields: [userId], references: [userId], onDelete: Cascade, map: "distributor_ibfk_1")
   department      Department?      @relation(fields: [departmentId], references: [departmentId], onDelete: Restrict, map: "distributor_ibfk_3")
 
-  @@id([userId])
   @@index([distributorType])
   @@index([departmentId], map: "distributor_ibfk_3")
 }
@@ -51,7 +49,7 @@ model ShowGenre {
   showId  String @db.VarChar(36)
   genre   String @db.VarChar(100)
   show    Show   @relation(fields: [showId], references: [showId], onDelete: Cascade, map: "showgenre_ibfk_1")
-  genreFk Genre  @relation("ShowGenre_GenreToGenre", fields: [genre], references: [name], onDelete: Restrict, map: "showgenre_ibfk_2")
+  genreFk Genre  @relation("ShowGenre_GenreToGenre", fields: [genre], references: [name], map: "showgenre_ibfk_2")
 
   @@id([showId, genre])
   @@index([genre], map: "showgenre_ibfk_2_idx")
@@ -67,9 +65,9 @@ model Show {
   createdAt    DateTime       @default(now()) @db.Timestamp(0)
   isArchived   Boolean        @default(false)
   showCover    String         @db.Text
-  genres       ShowGenre[]
   department   Department?    @relation(fields: [departmentId], references: [departmentId], onDelete: Restrict, map: "shows_ibfk_1")
-  creator      User           @relation(fields: [createdBy], references: [userId], onDelete: Restrict, map: "shows_ibfk_2")
+  creator      User           @relation(fields: [createdBy], references: [userId], map: "shows_ibfk_2")
+  genres       ShowGenre[]
   schedules    ShowSchedule[]
 
   @@index([departmentId], map: "shows_ibfk_1")
@@ -88,15 +86,13 @@ model ShowSchedule {
   femaleCount     Int?              @default(0)
   maleCount       Int?              @default(0)
   datetime        DateTime          @db.DateTime(0)
-  ticketPricingId String?           @db.VarChar(36)
-  ticketPricing   TicketPricing?    @relation(fields: [ticketPricingId], references: [id], onUpdate: Restrict, onDelete: Restrict, map: "fk_showschedules_ticketpricing")
+  ticketPricing   Json
   show            Show              @relation(fields: [showId], references: [showId], onDelete: Cascade, map: "showschedules_ibfk_1")
   seats           ShowSeat[]
   tickets         Ticket[]
   ticketLogs      TicketActionLog[]
 
   @@index([showId], map: "showschedules_ibfk_1")
-  @@index([ticketPricingId], map: "fk_showschedules_ticketpricing")
 }
 
 model ShowSeat {
@@ -116,21 +112,21 @@ model ShowSeat {
 }
 
 model Ticket {
-  ticketId           String           @id @db.VarChar(36)
+  ticketId           String       @id @db.VarChar(36)
   controlNumber      Int
-  scheduleId         String           @db.VarChar(36)
-  discountPercentage Decimal?         @db.Decimal(5, 2)
-  status             TicketStatus     @default(not_allocated)
-  distributorId      String?          @db.VarChar(36)
-  isComplimentary    Boolean?         @default(false)
-  ticketPrice        Decimal?         @db.Decimal(10, 2)
-  customerName       String?          @db.VarChar(45)
-  customerEmail      String?          @db.VarChar(45)
-  trainerSold        Boolean          @default(false)
-  logs               TicketLog[]
+  scheduleId         String       @db.VarChar(36)
+  discountPercentage Decimal?     @db.Decimal(5, 2)
+  status             TicketStatus @default(not_allocated)
+  distributorId      String?      @db.VarChar(36)
+  isComplimentary    Boolean?     @default(false)
+  ticketPrice        Decimal?     @db.Decimal(10, 2)
+  customerName       String?      @db.VarChar(45)
+  customerEmail      String?      @db.VarChar(45)
+  trainerSold        Boolean      @default(false)
   seats              ShowSeat[]
-  schedule           ShowSchedule     @relation(fields: [scheduleId], references: [scheduleId], onDelete: Cascade, map: "ticket_ibfk_1")
-  distributor        User?            @relation(fields: [distributorId], references: [userId], onDelete: Restrict, map: "ticket_ibfk_2")
+  schedule           ShowSchedule @relation(fields: [scheduleId], references: [scheduleId], onDelete: Cascade, map: "ticket_ibfk_1")
+  distributor        User?        @relation(fields: [distributorId], references: [userId], onDelete: Restrict, map: "ticket_ibfk_2")
+  logs               TicketLog[]
 
   @@index([distributorId], map: "distributorId")
   @@index([scheduleId], map: "ticket_ibfk_1_idx")
@@ -138,25 +134,23 @@ model Ticket {
 }
 
 model User {
-  userId               String                 @id @db.VarChar(36)
-  firstName            String                 @db.VarChar(100)
-  lastName             String                 @db.VarChar(100)
-  email                String                 @unique(map: "email") @db.VarChar(150)
-  password             String                 @db.VarChar(255)
-  createdAt            DateTime               @default(now()) @db.Timestamp(0)
-  isArchived           Boolean                @default(false)
-  isDefaultPassword    Boolean                @default(true)
-  resetPasswordToken   String?
-  resetPasswordExpires DateTime?
-  departments          DepartmentTrainer[]
-  distributor          Distributor?
-  deliveries           NotificationDelivery[]
-  notifications        Notification[]         @relation("Notification_SenderToUser")
-  shows                Show[]
-  tickets              Ticket[]
-  ticketLogsBy         TicketActionLog[]      @relation("TicketActionLog_ByUser")
-  ticketLogsDist       TicketActionLog[]      @relation("TicketActionLog_Distributor")
-  roles                UserRole[]
+  userId            String                 @id @db.VarChar(36)
+  firstName         String                 @db.VarChar(100)
+  lastName          String                 @db.VarChar(100)
+  email             String                 @unique(map: "email") @db.VarChar(150)
+  password          String                 @db.VarChar(255)
+  createdAt         DateTime               @default(now()) @db.Timestamp(0)
+  isArchived        Boolean                @default(false)
+  isDefaultPassword Boolean                @default(true)
+  departments       DepartmentTrainer[]
+  distributor       Distributor?
+  notifications     Notification[]         @relation("Notification_SenderToUser")
+  deliveries        NotificationDelivery[]
+  shows             Show[]
+  tickets           Ticket[]
+  ticketLogsBy      TicketActionLog[]      @relation("TicketActionLog_ByUser")
+  ticketLogsDist    TicketActionLog[]      @relation("TicketActionLog_Distributor")
+  roles             UserRole[]
 }
 
 model UserRole {
@@ -178,11 +172,11 @@ model TicketActionLog {
   totalRemittance Decimal?         @db.Decimal(10, 2)
   commission      Decimal?         @db.Decimal(10, 2)
   actionType      TicketActionType
-  logs            TicketLog[]
   metaData        Json?
   actionByUser    User             @relation("TicketActionLog_ByUser", fields: [actionBy], references: [userId], map: "actionby_fk3")
   distributor     User?            @relation("TicketActionLog_Distributor", fields: [distributorId], references: [userId], map: "distributor_fk2")
   schedule        ShowSchedule     @relation(fields: [scheduleId], references: [scheduleId], onDelete: Cascade, map: "schedule_fk1")
+  logs            TicketLog[]
 
   @@index([actionBy], map: "actionby_fk3_idx")
   @@index([distributorId], map: "distributor_fk2_idx")
@@ -207,8 +201,8 @@ model Notification {
   sentAt         DateTime?              @default(now()) @db.Timestamp(0)
   metaData       Json?
   type           NotificationType
-  deliveries     NotificationDelivery[]
   sender         User                   @relation("Notification_SenderToUser", fields: [senderId], references: [userId], onDelete: Cascade, map: "notifications_ibfk_1")
+  deliveries     NotificationDelivery[]
 
   @@index([senderId], map: "notification_fk1_idx")
 }
@@ -225,15 +219,7 @@ model NotificationDelivery {
   @@index([notificationId], map: "delivery_fk2")
 }
 
-model TicketPricing {
-  id            String            @id @db.VarChar(36)
-  priceName     String            @db.VarChar(45)
-  fixedPrice    Int?
-  commissionFee Int
-  sectionPrices Json?
-  type          TicketPricingType
-  schedules     ShowSchedule[]
-}
+
 
 enum ShowType {
   showCase

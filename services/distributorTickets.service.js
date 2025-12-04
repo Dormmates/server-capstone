@@ -76,7 +76,7 @@ export const getDistributorPaymentHistory = async ({ distributorId, scheduleId }
         select: {
           datetime: true,
           seatingType: true,
-          ticketPricing: { select: { commissionFee: true } },
+          ticketPricing: true,
           show: { select: { showCover: true, title: true, showId: true } },
         },
       },
@@ -193,7 +193,7 @@ export const getDistributorShowsAndTicketsAllocated = async ({ distributorId }) 
       schedule: {
         select: {
           datetime: true,
-          ticketPricing: { select: { commissionFee: true } },
+          ticketPricing: true,
           scheduleId: true,
           seatingType: true,
           show: { select: { showCover: true, showId: true, title: true, showType: true } },

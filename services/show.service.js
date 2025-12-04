@@ -101,9 +101,11 @@ export const updateShow = async ({ showId, showTitle, coverImage, description, d
 
 export const getShows = async ({ departmentId = null, showType = null, includeMajorProduction = false, excludeArchived = false, limit = null }) => {
   const where = {
-    ...(departmentId && {
-      OR: [{ departmentId }, { departmentId: null }],
-    }),
+    ...(Array.isArray(departmentId) && departmentId.length > 0
+      ? {
+          OR: [{ departmentId: { in: departmentId } }, { departmentId: null }],
+        }
+      : {}),
 
     ...(showType
       ? { showType }
@@ -115,6 +117,7 @@ export const getShows = async ({ departmentId = null, showType = null, includeMa
 
     ...(excludeArchived && { isArchived: false }),
   };
+
   const shows = await prisma.show.findMany({
     where,
     include: {
@@ -234,7 +237,6 @@ export const generateSalesReport = async (showId, scheduleIds) => {
               seats: true,
             },
           },
-          ticketPricing: true,
         },
       },
     },

@@ -333,9 +333,7 @@ export const getTopDistributors = async ({ departmentId, dateRange = null }) => 
         select: {
           scheduleId: true,
           datetime: true,
-          ticketPricing: {
-            select: { commissionFee: true },
-          },
+          ticketPricing: true,
           show: {
             select: {
               showId: true,
