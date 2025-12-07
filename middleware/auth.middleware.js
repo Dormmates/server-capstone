@@ -1,5 +1,6 @@
 import jwt from "jsonwebtoken";
 import { AppError, HttpStatusCodes } from "./errorHandler.middleware.js";
+import { unmask } from "../utils/security.js";
 
 export const verifyAuth = (req, res, next) => {
   const authHeader = req.headers.authorization;
@@ -8,7 +9,7 @@ export const verifyAuth = (req, res, next) => {
     return next(new AppError("Authentication required", HttpStatusCodes.Unauthorized));
   }
 
-  const token = authHeader.split(" ")[1];
+  const token = unmask(authHeader.split(" ")[1]);
 
   try {
     const decoded = jwt.verify(token, process.env.TOKEN_KEY);

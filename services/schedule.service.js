@@ -9,6 +9,52 @@ import { DistributorTicketNotification, sendTicketNotificationsToDistributor } f
 dayjs.extend(utc);
 dayjs.extend(timezone);
 
+async function validateScheduleIntervals(dates, minHours = 2) {
+  if (!dates || dates.length === 0) return;
+
+  const uniqueDays = [...new Set(dates.map((d) => new Date(d.datetime).toISOString().split("T")[0]))];
+
+  const existingSchedules = await prisma.showSchedule.findMany({
+    where: {
+      datetime: {
+        gte: new Date(`${uniqueDays[0]}T00:00:00.000Z`),
+        lte: new Date(`${uniqueDays[uniqueDays.length - 1]}T23:59:59.999Z`),
+      },
+    },
+    select: { datetime: true },
+  });
+
+  const combinedSchedules = [...existingSchedules.map((e) => new Date(e.datetime)), ...dates.map((d) => new Date(d.datetime))];
+
+  const groupedByDay = {};
+  combinedSchedules.forEach((d) => {
+    const dayKey = d.toISOString().split("T")[0];
+    if (!groupedByDay[dayKey]) groupedByDay[dayKey] = [];
+    groupedByDay[dayKey].push(d);
+  });
+
+  const invalidIntervals = [];
+  for (const [day, dayDates] of Object.entries(groupedByDay)) {
+    const sortedTimes = dayDates.sort((a, b) => a.getTime() - b.getTime());
+
+    for (let i = 1; i < sortedTimes.length; i++) {
+      const diffHours = (sortedTimes[i] - sortedTimes[i - 1]) / (1000 * 60 * 60);
+      if (diffHours < minHours) {
+        const prevTime = dayjs(sortedTimes[i - 1]).format("MMMM D, YYYY hh:mm A");
+        const currTime = dayjs(sortedTimes[i]).format("MMMM D, YYYY hh:mm A");
+        invalidIntervals.push(`${prevTime} and ${currTime}`);
+      }
+    }
+  }
+
+  if (invalidIntervals.length > 0) {
+    throw new AppError(
+      `Schedules must be at least ${minHours} hours apart (existing + new):\n${invalidIntervals.join("\n")}`,
+      HttpStatusCodes.BadRequest
+    );
+  }
+}
+
 export const addShowSchedule = async ({
   dates = [],
   showId,
@@ -28,6 +74,8 @@ export const addShowSchedule = async ({
   if (invalidDates.length > 0) {
     throw new AppError(`Cannot add schedules in the past (PH time): ${invalidDates.join(", ")}`, HttpStatusCodes.BadRequest);
   }
+
+  await validateScheduleIntervals(dates, 2);
 
   const schedules = dates.map(({ datetime }) => {
     return {
@@ -153,6 +201,8 @@ export const reschedule = async ({ scheduleId, newDateTime }) => {
     throw new AppError(`Cannot reschedule to a past date/time (PH time): ${newDatePH.format("YYYY-MM-DD HH:mm A")}`, HttpStatusCodes.BadRequest);
   }
 
+  await validateScheduleIntervals([{ datetime: newDateTime }], 2);
+
   const conflicts = await prisma.showSchedule.findMany({
     where: {
       datetime: newDateTime,
@@ -178,6 +228,8 @@ export const copySchedule = async ({ scheduleId, newDateTime }) => {
   if (newDatePH.isBefore(nowPH)) {
     throw new AppError(`Cannot copy schedule to a past date/time (PH time): ${newDatePH.format("YYYY-MM-DD hh:mm A")}`, HttpStatusCodes.BadRequest);
   }
+
+  await validateScheduleIntervals([{ datetime: newDateTime }], 2);
 
   const existingSchedule = await prisma.showSchedule.findUnique({
     where: { scheduleId },

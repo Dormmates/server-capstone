@@ -1,8 +1,8 @@
 import { asyncHandler } from "../middleware/asyncHandler.middleware.js";
 import { AppError, HttpStatusCodes } from "../middleware/errorHandler.middleware.js";
 import { login, getUserById, changePassword, isPasswordCorrect } from "../services/auth.service.js";
+import { mask } from "../utils/security.js";
 import { generateToken } from "../utils/token.utils.js";
-import { validateEmail } from "../utils/validators.js";
 
 export const loginController = asyncHandler(async (req, res) => {
   const { email, password, expectedRole } = req.body;
@@ -17,12 +17,44 @@ export const loginController = asyncHandler(async (req, res) => {
     throw new AppError("Account is locked or archived", HttpStatusCodes.Forbidden);
   }
 
-  res.json({ token: generateToken({ userId: user.userId, userRole: user.roles }), user: { ...user } });
+  const maskedToken = mask(generateToken({ userId: user.userId, userRole: user.roles }));
+  const maskedEmail = mask(email);
+
+  res.json({ token: maskedToken, user: { ...user, email: maskedEmail } });
 });
 
 export const getUserInformationController = asyncHandler(async (req, res, next) => {
   const user = await getUserById(req.user.userId);
-  res.status(HttpStatusCodes.OK).json(user);
+
+  if (!user) {
+    return res.status(HttpStatusCodes.NOT_FOUND).json({ message: "User not found" });
+  }
+
+  const { email, distributor, ...others } = user;
+
+  const encryptedEmail = mask(email);
+
+  let maskedDistributor = null;
+  if (distributor) {
+    maskedDistributor = {
+      ...distributor,
+      contactNumber: distributor.contactNumber ? mask(distributor.contactNumber) : undefined,
+      distributorType: distributor.distributorType,
+      department: distributor.department
+        ? {
+            ...distributor.department,
+            departmentId: distributor.department.departmentId,
+            name: distributor.department.name,
+          }
+        : null,
+    };
+  }
+
+  res.status(HttpStatusCodes.OK).json({
+    ...others,
+    email: encryptedEmail,
+    distributor: maskedDistributor,
+  });
 });
 
 export const updatePasswordController = asyncHandler(async (req, res) => {
