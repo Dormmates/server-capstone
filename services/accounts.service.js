@@ -1,6 +1,7 @@
 import { AppError, HttpStatusCodes } from "../middleware/errorHandler.middleware.js";
 import { hashPassword } from "../utils/password.utils.js";
 import prisma from "../utils/primsa.connection.js";
+import { mask } from "../utils/security.js";
 import { validateEmail } from "../utils/validators.js";
 import { getUserByEmail, getUserById } from "./auth.service.js";
 
@@ -11,7 +12,12 @@ export const getTrainers = async () => {
         some: { role: "trainer" },
       },
     },
-    include: {
+    select: {
+      userId: true,
+      email: true,
+      firstName: true,
+      lastName: true,
+      isArchived: true,
       departments: {
         select: {
           department: true,
@@ -25,11 +31,13 @@ export const getTrainers = async () => {
     },
   });
 
-  return trainers.map((user) => ({
-    ...user,
-    departments: user.departments.map((d) => d.department),
-    roles: user.roles.map((ur) => ur.role),
-  }));
+  return trainers.map((user) => {
+    return {
+      ...user,
+      departments: user.departments.map((d) => d.department),
+      roles: user.roles.map((ur) => ur.role),
+    };
+  });
 };
 
 export const getDistributors = async (departmentId, excludeCCA, includeOtherTypes) => {
@@ -53,7 +61,12 @@ export const getDistributors = async (departmentId, excludeCCA, includeOtherType
         },
       }),
     },
-    include: {
+    select: {
+      userId: true,
+      lastName: true,
+      isArchived: true,
+      firstName: true,
+      email: true,
       distributor: {
         select: {
           department: {
@@ -83,10 +96,12 @@ export const getDistributors = async (departmentId, excludeCCA, includeOtherType
     },
   });
 
-  return distributors.map((user) => ({
-    ...user,
-    roles: user.roles.map((ur) => ur.role),
-  }));
+  return distributors.map((user) => {
+    return {
+      ...user,
+      roles: user.roles.map((ur) => ur.role),
+    };
+  });
 };
 
 export const getCCAHeads = async () => {
@@ -96,7 +111,12 @@ export const getCCAHeads = async () => {
         some: { role: "head" },
       },
     },
-    include: {
+    select: {
+      email: true,
+      firstName: true,
+      userId: true,
+      lastName: true,
+      isArchived: true,
       departments: {
         select: {
           department: true,
@@ -110,11 +130,13 @@ export const getCCAHeads = async () => {
     },
   });
 
-  return heads.map((user) => ({
-    ...user,
-    departments: user.departments.map((d) => d),
-    roles: user.roles.map((ur) => ur.role),
-  }));
+  return heads.map((user) => {
+    return {
+      ...user,
+      departments: user.departments.map((d) => d),
+      roles: user.roles.map((ur) => ur.role),
+    };
+  });
 };
 
 export const editAccount = async ({ userId, firstName, lastName, email }) => {
