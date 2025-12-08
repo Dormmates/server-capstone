@@ -18,6 +18,7 @@ import {
 } from "../services/accounts.service.js";
 import { createAccount, getUserById } from "../services/auth.service.js";
 import prisma from "../utils/primsa.connection.js";
+import { mask } from "../utils/security.js";
 import { validateEmail } from "../utils/validators.js";
 
 /**
@@ -227,7 +228,24 @@ export const getDistributorInformationController = asyncHandler(async (req, res,
   }
 
   const user = await getUserById(id);
-  res.json(user);
+
+  if (!user) {
+    throw new AppError("User not found", 404);
+  }
+
+  const maskedEmail = mask(user.email);
+  const maskedContactNumber = mask(user?.distributor?.contactNumber);
+
+  res.json({
+    ...user,
+    email: maskedEmail,
+    distributor: user.distributor
+      ? {
+          ...user.distributor,
+          contactNumber: maskedContactNumber,
+        }
+      : null,
+  });
 });
 
 export const addCCAHeadRoleController = asyncHandler(async (req, res, next) => {

@@ -5,6 +5,7 @@ import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc.js";
 import timezone from "dayjs/plugin/timezone.js";
 import { DistributorTicketNotification, sendTicketNotificationsToDistributor } from "../utils/sendNotification.js";
+import { mask } from "../utils/security.js";
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
@@ -782,7 +783,7 @@ export const getScheduleDistributors = async (scheduleId) => {
       name: `${dist.lastName}, ${dist.firstName}`,
       totalAllocated,
       totalSold,
-      email: dist.email,
+      email: mask(dist.email),
       department: {
         name: dist.distributor?.department?.name ?? null,
         id: dist.distributor?.department?.departmentId ?? null,

@@ -32,8 +32,11 @@ export const getTrainers = async () => {
   });
 
   return trainers.map((user) => {
+    const maskedEmail = mask(user.email);
+
     return {
       ...user,
+      email: maskedEmail,
       departments: user.departments.map((d) => d.department),
       roles: user.roles.map((ur) => ur.role),
     };
@@ -97,8 +100,17 @@ export const getDistributors = async (departmentId, excludeCCA, includeOtherType
   });
 
   return distributors.map((user) => {
+    const maskedEmail = mask(user.email);
+
     return {
       ...user,
+      email: maskedEmail,
+      distributor: user.distributor
+        ? {
+            ...user.distributor,
+            contactNumber: mask(user.distributor.contactNumber),
+          }
+        : null,
       roles: user.roles.map((ur) => ur.role),
     };
   });
@@ -131,8 +143,11 @@ export const getCCAHeads = async () => {
   });
 
   return heads.map((user) => {
+    const maskedEmail = mask(user.email);
+
     return {
       ...user,
+      email: maskedEmail,
       departments: user.departments.map((d) => d),
       roles: user.roles.map((ur) => ur.role),
     };
