@@ -1,3 +1,4 @@
+import { AppError } from "../middleware/errorHandler.middleware.js";
 import { storage } from "../utils/appwriteconfig.js";
 import { getFileId } from "../utils/general.utils.js";
 import prisma from "../utils/primsa.connection.js";
@@ -12,6 +13,29 @@ export const doesShowExist = async (showId) => {
 };
 
 export const createShow = async ({ showTitle, coverImage, description, department, genre = [], createdBy, showType }) => {
+  const similarShowTitle = await prisma.show.findFirst({
+    where: {
+      title: showTitle,
+      showType,
+      isArchived: false,
+    },
+    select: {
+      department: {
+        select: {
+          name: true,
+        },
+      },
+    },
+  });
+
+  if (similarShowTitle) {
+    const deptName = similarShowTitle.department?.name || "this department";
+
+    throw new AppError(
+      `The show title "${showTitle}" with production type "${showType}" is already used under the ${deptName} department. Please choose a different title.`
+    );
+  }
+
   const newShow = await prisma.show.create({
     data: {
       showId: crypto.randomUUID(),
