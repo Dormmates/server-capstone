@@ -11,6 +11,8 @@ dayjs.tz.setDefault("Asia/Manila");
 export const getUpcomingShows = async () => {
   const now = dayjs().tz("Asia/Manila");
 
+  const twoMonthsFromNow = now.add(2, "month").toDate();
+
   const schedules = await prisma.showSchedule.groupBy({
     by: ["showId"],
     where: {
@@ -20,6 +22,7 @@ export const getUpcomingShows = async () => {
       },
       datetime: {
         gt: now.toDate(),
+        lt: twoMonthsFromNow,
       },
     },
     _min: {
