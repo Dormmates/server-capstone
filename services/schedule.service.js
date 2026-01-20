@@ -409,12 +409,12 @@ export const getScheduleSummary = async (scheduleId) => {
       (acc, t) => {
         acc.total += 1;
 
-        if (["sold", "paidToCCA", "remitted"].includes(t.status)) acc.sold += 1;
+        if (["sold", "paidToCCA", "remitted", "lost"].includes(t.status)) acc.sold += 1;
         if (["allocated", "not_allocated"].includes(t.status)) acc.remaining += 1;
         if (t.status === "not_allocated") acc.notAllocated += 1;
         if (t.status === "allocated") acc.allocated += 1;
         if (t.status === "sold") acc.unpaid += 1;
-        if (["paidToCCA", "remitted"].includes(t.status)) acc.paid += 1;
+        if (["paidToCCA", "remitted", "lost"].includes(t.status)) acc.paid += 1;
 
         return acc;
       },
@@ -451,13 +451,13 @@ export const getScheduleSummary = async (scheduleId) => {
 
     const totalAllocatedTickets = tickets.length;
 
-    const soldTickets = tickets.filter((t) => ["sold", "remitted", "paidToCCA"].includes(t.status)).length;
+    const soldTickets = tickets.filter((t) => ["sold", "remitted", "paidToCCA", "lost"].includes(t.status)).length;
     const paidTickets = tickets.filter((t) => t.status === "paidToCCA").length;
     const unPaidTickets = tickets.filter((t) => t.status === "sold").length;
     const unsoldTickets = totalAllocatedTickets - soldTickets;
     const expected = tickets.reduce((acc, t) => acc + Number(t.ticketPrice - schedule.ticketPricing.commissionFee), 0);
     const paid = tickets
-      .filter((t) => ["remitted", "paidToCCA"].includes(t.status))
+      .filter((t) => ["remitted", "paidToCCA", "lost"].includes(t.status))
       .reduce((acc, t) => acc + Number(t.ticketPrice - schedule.ticketPricing.commissionFee), 0);
 
     const balanceDue = expected - paid;
