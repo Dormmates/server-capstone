@@ -51,7 +51,7 @@ async function validateScheduleIntervals(dates, minHours = 2) {
   if (invalidIntervals.length > 0) {
     throw new AppError(
       `Schedules must be at least ${minHours} hours apart (existing + new):\n${invalidIntervals.join("\n")}`,
-      HttpStatusCodes.BadRequest
+      HttpStatusCodes.BadRequest,
     );
   }
 }
@@ -418,7 +418,7 @@ export const getScheduleSummary = async (scheduleId) => {
 
         return acc;
       },
-      { total: 0, sold: 0, remaining: 0, notAllocated: 0, allocated: 0, unpaid: 0, paid: 0 }
+      { total: 0, sold: 0, remaining: 0, notAllocated: 0, allocated: 0, unpaid: 0, paid: 0 },
     );
   };
 
@@ -486,7 +486,7 @@ export const getScheduleSummary = async (scheduleId) => {
       acc.paidToCCA += d.paid;
       return acc;
     },
-    { allocated: 0, sold: 0, unsold: 0, paidToCCA: 0 }
+    { allocated: 0, sold: 0, unsold: 0, paidToCCA: 0 },
   );
 
   const totalPaidToCCA = scheduleTickets
@@ -920,7 +920,7 @@ export const allocateTicketsToDistributorsService = async ({ scheduleId, allocat
     },
     {
       timeout: 60000,
-    }
+    },
   );
 };
 
@@ -1296,40 +1296,54 @@ export const payTicketSales = async ({
   actionBy,
   remarks = null,
 }) => {
+  const allControlNumbers = [...new Set([...sold, ...lost, ...discounted])];
+
   const schedule = await prisma.showSchedule.findUnique({
     where: { scheduleId },
   });
 
   if (!schedule) {
-    throw new AppError("Provided Schedule does not exist");
+    throw new AppError("Provided schedule does not exist", HttpStatusCodes.NotFound);
   }
 
   const distributor = await prisma.user.findUnique({
     where: { userId: distributorId },
     include: {
-      distributor: {
-        select: {
-          hasCommission: true,
-        },
-      },
+      distributor: { select: { hasCommission: true } },
     },
   });
 
   if (!distributor) {
-    throw new AppError("Distributor not found");
+    throw new AppError("Distributor not found", HttpStatusCodes.NotFound);
   }
 
-  const allControlNumbers = [...sold, ...lost, ...discounted];
-
   const tickets = await prisma.ticket.findMany({
-    where: { scheduleId, controlNumber: { in: allControlNumbers } },
-    select: { ticketId: true, controlNumber: true, ticketPrice: true },
+    where: {
+      scheduleId,
+      controlNumber: { in: allControlNumbers },
+    },
+    select: {
+      ticketId: true,
+      controlNumber: true,
+      ticketPrice: true,
+      status: true,
+    },
   });
+
+  if (tickets.length !== allControlNumbers.length) {
+    throw new AppError("Some tickets do not exist or do not belong to this schedule", HttpStatusCodes.BadRequest);
+  }
+
+  // 🚨 Block already-paid tickets BEFORE transaction
+  const alreadyPaid = tickets.filter((t) => t.status === "paidToCCA");
+  if (alreadyPaid.length > 0) {
+    throw new AppError("Some tickets were already remitted by another user", HttpStatusCodes.Conflict);
+  }
 
   const ticketIdMap = Object.fromEntries(tickets.map((t) => [t.controlNumber, t.ticketId]));
 
   const commissionFee = Number(schedule.ticketPricing.commissionFee);
-  const hasCommission = distributor.distributor.hasCommission ?? false;
+  const hasCommission = distributor.distributor?.hasCommission ?? false;
 
   let totalAmount = 0;
   let totalCommission = 0;
@@ -1337,50 +1351,93 @@ export const payTicketSales = async ({
   for (const ticket of tickets) {
     let price = Number(ticket.ticketPrice);
 
-    if (discounted.includes(ticket.controlNumber) && discountPercentage) {
-      price = price - price * (discountPercentage / 100);
+    if (discounted.includes(ticket.controlNumber) && discountPercentage !== null) {
+      price -= price * (discountPercentage / 100);
     }
 
     totalAmount += price;
-
-    if (hasCommission) {
-      totalCommission += commissionFee;
-    }
+    if (hasCommission) totalCommission += commissionFee;
   }
 
-  // Action log ID
   const actionLogId = crypto.randomUUID();
 
-  const res = await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx) => {
+    // ✅ SOLD → PAID
     if (sold.length > 0) {
-      await tx.ticket.updateMany({
-        where: { scheduleId, controlNumber: { in: sold } },
+      const result = await tx.ticket.updateMany({
+        where: {
+          scheduleId,
+          controlNumber: { in: sold },
+          status: {
+            in: ["sold", "allocated"],
+          },
+        },
         data: { status: "paidToCCA" },
       });
+
+      if (result.count !== sold.length) {
+        throw new AppError("Some sold tickets were already processed", HttpStatusCodes.Conflict);
+      }
     }
 
-    // Lost → lost
+    // ✅ LOST → LOST (finalized)
     if (lost.length > 0) {
-      await tx.ticket.updateMany({
-        where: { scheduleId, controlNumber: { in: lost } },
+      const result = await tx.ticket.updateMany({
+        where: {
+          scheduleId,
+          controlNumber: { in: lost },
+          status: {
+            in: ["sold", "allocated"],
+          },
+        },
         data: { status: "lost" },
       });
+
+      if (result.count !== lost.length) {
+        throw new AppError("Some lost tickets were already processed", HttpStatusCodes.Conflict);
+      }
     }
 
-    // Discounted tickets → set discount
+    // ✅ DISCOUNT
     if (discounted.length > 0 && discountPercentage !== null) {
       await tx.ticket.updateMany({
-        where: { scheduleId, controlNumber: { in: discounted } },
+        where: {
+          scheduleId,
+          controlNumber: { in: discounted },
+          status: { not: "paidToCCA" },
+        },
         data: { discountPercentage },
       });
     }
 
     await tx.showSeat.updateMany({
-      where: { scheduleId, ticketId: { in: allControlNumbers.map((cn) => ticketIdMap[cn]) } },
+      where: {
+        scheduleId,
+        ticketId: {
+          in: allControlNumbers.map((cn) => ticketIdMap[cn]),
+        },
+        status: { not: "paidToCCA" },
+      },
       data: { status: "paidToCCA" },
     });
 
-    // Create ticket action log
+    const existingLog = await tx.ticketActionLog.findFirst({
+      where: {
+        actionType: "payToCCA",
+        logs: {
+          some: {
+            ticketId: {
+              in: sold.map((cn) => ticketIdMap[cn]),
+            },
+          },
+        },
+      },
+    });
+
+    if (existingLog) {
+      throw new AppError("Duplicate remittance attempt detected", HttpStatusCodes.Conflict);
+    }
+
     await tx.ticketActionLog.create({
       data: {
         actionLogId,
@@ -1391,36 +1448,25 @@ export const payTicketSales = async ({
         actionType: "payToCCA",
         logs: {
           createMany: {
-            data: [
-              ...sold.map((cn) => ({
-                ticketId: ticketIdMap[cn],
-              })),
-              ...lost.map((cn) => ({
-                ticketId: ticketIdMap[cn],
-              })),
-            ],
+            data: [...sold.map((cn) => ({ ticketId: ticketIdMap[cn] })), ...lost.map((cn) => ({ ticketId: ticketIdMap[cn] }))],
           },
         },
       },
     });
-
-    return true;
   });
 
-  if (res) {
-    sendTicketNotificationsToDistributor({
-      actionBy,
-      distributorId,
-      scheduleId,
-      totalTickets: allControlNumbers.length,
-      action: DistributorTicketNotification.REMIT,
-      metaData: {
-        amountRemitted: totalAmount - totalCommission,
-        totalCommission,
-        remarks,
-      },
-    });
-  }
+  sendTicketNotificationsToDistributor({
+    actionBy,
+    distributorId,
+    scheduleId,
+    totalTickets: allControlNumbers.length,
+    action: DistributorTicketNotification.REMIT,
+    metaData: {
+      amountRemitted: totalAmount - totalCommission,
+      totalCommission,
+      remarks,
+    },
+  });
 };
 
 export const unPayTicketSales = async ({ remittedTickets, scheduleId, distributorId, actionBy, remarks = null }) => {
@@ -1451,7 +1497,7 @@ export const unPayTicketSales = async ({ remittedTickets, scheduleId, distributo
     throw new AppError(
       "Unremittance Failed because ticket control number(s) - (" +
         lostTickets.map((t) => t.controlNumber).join(", ") +
-        ")  are marked as lost ticket(s) and cannot be unremitted. If you think this is a mistake you could navigate to tickets section and mark this tickets as not lost"
+        ")  are marked as lost ticket(s) and cannot be unremitted. If you think this is a mistake you could navigate to tickets section and mark this tickets as not lost",
     );
   }
 
