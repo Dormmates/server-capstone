@@ -1453,12 +1453,16 @@ export const payTicketSales = async ({
 };
 
 export const unPayTicketSales = async ({ remittedTickets, scheduleId, distributorId, actionBy, remarks = null }) => {
+  if (!remittedTickets.length) {
+    throw new AppError("No tickets provided for unremittance", HttpStatusCodes.BadRequest);
+  }
+
   const schedule = await prisma.showSchedule.findUnique({
     where: { scheduleId },
   });
 
   if (!schedule) {
-    throw new AppError("Provided Schedule does not exist");
+    throw new AppError("Provided Schedule does not exist", HttpStatusCodes.NotFound);
   }
 
   const distributor = await prisma.user.findUnique({
@@ -1466,21 +1470,38 @@ export const unPayTicketSales = async ({ remittedTickets, scheduleId, distributo
   });
 
   if (!distributor) {
-    throw new AppError("Distributor not found");
+    throw new AppError("Distributor not found", HttpStatusCodes.NotFound);
   }
 
   const tickets = await prisma.ticket.findMany({
-    where: { scheduleId, controlNumber: { in: remittedTickets } },
-    select: { ticketId: true, controlNumber: true, status: true },
+    where: {
+      scheduleId,
+      controlNumber: { in: remittedTickets },
+    },
+    select: {
+      ticketId: true,
+      controlNumber: true,
+      status: true,
+    },
   });
 
-  const lostTickets = tickets.filter((t) => t.status == "lost");
+  if (tickets.length !== remittedTickets.length) {
+    throw new AppError("Some tickets do not exist or do not belong to this schedule", HttpStatusCodes.BadRequest);
+  }
 
+  const lostTickets = tickets.filter((t) => t.status === "lost");
   if (lostTickets.length > 0) {
     throw new AppError(
-      "Unremittance Failed because ticket control number(s) - (" +
-        lostTickets.map((t) => t.controlNumber).join(", ") +
-        ")  are marked as lost ticket(s) and cannot be unremitted. If you think this is a mistake you could navigate to tickets section and mark this tickets as not lost",
+      `Unremittance failed. Ticket(s) (${lostTickets.map((t) => t.controlNumber).join(", ")}) are marked as lost.`,
+      HttpStatusCodes.Conflict,
+    );
+  }
+
+  const notPaid = tickets.filter((t) => t.status !== "paidToCCA");
+  if (notPaid.length > 0) {
+    throw new AppError(
+      `Unremittance failed. Ticket(s) (${notPaid.map((t) => t.controlNumber).join(", ")}) are not currently remitted.`,
+      HttpStatusCodes.Conflict,
     );
   }
 
@@ -1488,23 +1509,27 @@ export const unPayTicketSales = async ({ remittedTickets, scheduleId, distributo
 
   const actionLogId = crypto.randomUUID();
 
-  const res = await prisma.$transaction(async (tx) => {
-    await tx.ticket.updateMany({
+  await prisma.$transaction(async (tx) => {
+    const ticketResult = await tx.ticket.updateMany({
       where: {
         scheduleId,
         controlNumber: { in: remittedTickets },
         status: "paidToCCA",
       },
-      data: { status: "allocated" },
+      data: {
+        status: "allocated",
+      },
     });
 
-    await tx.showSeat.updateMany({
+    if (ticketResult.count !== remittedTickets.length) {
+      throw new AppError("Some tickets were already unremitted by another user", HttpStatusCodes.Conflict);
+    }
+
+    const seatResult = await tx.showSeat.updateMany({
       where: {
         scheduleId,
-        ticket: {
-          controlNumber: {
-            in: remittedTickets,
-          },
+        ticketId: {
+          in: remittedTickets.map((cn) => ticketIdMap[cn]),
         },
         status: "paidToCCA",
       },
@@ -1512,6 +1537,10 @@ export const unPayTicketSales = async ({ remittedTickets, scheduleId, distributo
         status: "reserved",
       },
     });
+
+    if (seatResult.count !== remittedTickets.length) {
+      throw new AppError("Seat state mismatch detected during unremittance", HttpStatusCodes.Conflict);
+    }
 
     await tx.ticketActionLog.create({
       data: {
@@ -1530,22 +1559,16 @@ export const unPayTicketSales = async ({ remittedTickets, scheduleId, distributo
         },
       },
     });
-
-    return true;
   });
 
-  if (res) {
-    sendTicketNotificationsToDistributor({
-      actionBy,
-      distributorId,
-      scheduleId,
-      totalTickets: remittedTickets.length,
-      action: DistributorTicketNotification.UNREMIT,
-      metaData: {
-        remarks,
-      },
-    });
-  }
+  sendTicketNotificationsToDistributor({
+    actionBy,
+    distributorId,
+    scheduleId,
+    totalTickets: remittedTickets.length,
+    action: DistributorTicketNotification.UNREMIT,
+    metaData: { remarks },
+  });
 };
 
 export const addTallyData = async ({ femaleCount, maleCount, scheduleId }) => {
