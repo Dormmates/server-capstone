@@ -1421,23 +1421,6 @@ export const payTicketSales = async ({
       data: { status: "paidToCCA" },
     });
 
-    const existingLog = await tx.ticketActionLog.findFirst({
-      where: {
-        actionType: "payToCCA",
-        logs: {
-          some: {
-            ticketId: {
-              in: sold.map((cn) => ticketIdMap[cn]),
-            },
-          },
-        },
-      },
-    });
-
-    if (existingLog) {
-      throw new AppError("Duplicate remittance attempt detected", HttpStatusCodes.Conflict);
-    }
-
     await tx.ticketActionLog.create({
       data: {
         actionLogId,
