@@ -27,7 +27,7 @@ app.use(
   cors({
     origin: process.env.FRONTEND_URL,
     credentials: true,
-  })
+  }),
 );
 
 app.use(express.json({ limit: "5mb" }));
@@ -51,11 +51,6 @@ app.get("/", (req, res) => {
 
 app.use(errorHandler);
 
-// const httpServer = createServer(app);
-
-// const io = initSocket(httpServer);
-// registerSocketHandlers(io);
-
 app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
+  console.log(`Server running on port:${PORT}`);
 });

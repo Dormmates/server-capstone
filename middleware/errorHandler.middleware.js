@@ -31,7 +31,7 @@ export const errorHandler = (err, req, res, next) => {
 
   const isAppError = err instanceof AppError;
   const statusCode = isAppError ? err.statusCode : HttpStatusCodes.InternalServerError;
-  const message = isAppError ? err.message : "Something went wrong. Please try again later.";
+  const message = err.message || "Something went wrong. Please try again later.";
 
   if (isDev || !isAppError) {
     console.error(" Error:", {
